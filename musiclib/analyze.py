@@ -1,8 +1,16 @@
 import subprocess
 from mutagen import File
 
+
 def run_rsgain(directory):
-    subprocess.run(['rsgain', 'apply', '--smart', '--recursive', directory], check=True)
+    try:
+        subprocess.run(['rsgain', 'apply', '--smart', '--recursive', directory], check=True)
+    except FileNotFoundError as e:
+        raise FileNotFoundError(
+            "Error: 'rsgain' not found. Please install it and ensure it's in your PATH."
+        ) from e
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"rsgain failed with exit code {e.returncode}: {e.stderr}") from e
 
 
 def analyze_gain(filepath):
