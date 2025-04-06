@@ -1,0 +1,50 @@
+import json
+import os
+
+def generate_reports(json_path, output_dir):
+    with open(json_path, "r", encoding="utf-8") as f:
+        data = json.load(f)
+
+    html_lines = [
+        "<html><head><title>Audio Processing Report</title><style>",
+        "body { font-family: Arial, sans-serif; }",
+        "table { border-collapse: collapse; width: 100%; }",
+        "th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }",
+        "tr.flagged { background-color: #ffe6e6; }",
+        "</style></head><body>",
+        "<h1>Audio Processing Report</h1>",
+        "<table><tr><th>File</th><th>Track Gain</th><th>Track Peak</th><th>Too Quiet</th><th>Clipping</th><th>Resourcing Recommended</th></tr>"
+    ]
+
+    md_lines = [
+        "# Audio Processing Report\n",
+        "| File | Track Gain | Track Peak | Too Quiet | Clipping | Resourcing Recommended |",
+        "|------|------------|------------|-----------|----------|-------------------------|"
+    ]
+
+    for item in data:
+        row_class = " class='flagged'" if item.get("resourcing_recommended") else ""
+        html_lines.append(
+            f"<tr{row_class}><td>{item['path']}</td>"
+            f"<td>{item.get('track_gain')}</td>"
+            f"<td>{item.get('track_peak')}</td>"
+            f"<td>{item.get('too_quiet')}</td>"
+            f"<td>{item.get('potential_clipping')}</td>"
+            f"<td>{item.get('resourcing_recommended')}</td></tr>"
+        )
+        md_lines.append(
+            f"| {item['path']} | {item.get('track_gain')} | {item.get('track_peak')} | "
+            f"{item.get('too_quiet')} | {item.get('potential_clipping')} | {item.get('resourcing_recommended')} |"
+        )
+
+    html_lines.extend(["</table></body></html>"])
+
+    html_path = os.path.join(output_dir, "report.html")
+    md_path = os.path.join(output_dir, "report.md")
+
+    with open(html_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(html_lines))
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(md_lines))
+
+    print(f"Report saved to:\n- {html_path}\n- {md_path}")

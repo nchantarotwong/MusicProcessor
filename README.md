@@ -26,7 +26,7 @@
 
 - [Python 3.10+](https://www.python.org/)
 - [`ffmpeg`](https://ffmpeg.org/download.html)
-- [`r128gain`](https://github.com/kteru/r128gain)
+- [`rsgain`](https://github.com/kteru/r128gain)
 - Python libraries:
   ```bash
   pip install mutagen
