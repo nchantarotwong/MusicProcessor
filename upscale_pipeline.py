@@ -2,6 +2,9 @@ import os
 import sys
 import shutil
 import json
+
+import caffeine
+
 from musiclib.convert import ensure_dir, get_audio_info, convert_to_flac, copy_metadata_and_artwork
 from musiclib.analyze import run_rsgain, analyze_gain
 from musiclib.report import generate_reports
@@ -67,12 +70,16 @@ if __name__ == "__main__":
         print("Usage: python upscale_pipeline.py /input/dir /output/dir")
         sys.exit(1)
 
-    process_library(
-        sys.argv[1],
-        sys.argv[2],
-        convert_to_flac,
-        copy_metadata_and_artwork,
-        run_rsgain,
-        analyze_gain,
-        generate_reports
-    )
+    try:
+        process_library(
+            sys.argv[1],
+            sys.argv[2],
+            convert_to_flac,
+            copy_metadata_and_artwork,
+            run_rsgain,
+            analyze_gain,
+            generate_reports
+        )
+    finally:
+        print("💤 Re-enabling system sleep.")
+        caffeine.off()
