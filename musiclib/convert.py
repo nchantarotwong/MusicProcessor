@@ -96,7 +96,7 @@ def convert_to_aac(
 
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
-        "-map", "0:a:0",
+        "-map", "0:a", # disable video stream output to avoid failures from album art
         *(["-af", ",".join(filters)] if filters else []),
         "-ar", str(TARGET_AAC_SAMPLE_RATE),
         "-c:a", "aac" if strategy["format"] == "aac" else "flac",
