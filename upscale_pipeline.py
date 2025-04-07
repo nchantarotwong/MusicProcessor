@@ -112,7 +112,7 @@ if __name__ == "__main__":
         print("☕ Preventing system sleep...")
         caffeine.on(display=True)
 
-        process_library(args.input, args.output,)
+        process_library(args.input, args.output)
     finally:
         print("💤 Re-enabling system sleep.")
         caffeine.off()
