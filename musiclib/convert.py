@@ -83,6 +83,7 @@ def convert_to_aac(input_path, output_path, failed_dir=None, track_gain_db=None)
 
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
+        "-map", "0:a:0",  # Only map the first audio stream
         *(["-af", ",".join(filters)] if filters else []),
         "-c:a", "aac", "-b:a", "256k",
         output_path
