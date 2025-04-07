@@ -31,16 +31,30 @@ def get_audio_info(filepath):
         filepath (str): Path to the audio file.
 
     Returns:
-        tuple: A tuple containing:
-            - ext (str): File extension (lowercase).
-            - sample_rate (int): Sample rate in Hz.
-            - bits_per_sample (int): Bit depth if available, default is 16.
+        dict: A dictionary containing:
+            - ext (str): File extension (lowercase)
+            - sample_rate (int): Sample rate in Hz
+            - bits_per_sample (int or None): Bit depth if available
+            - bitrate (int or None): Bitrate in kbps, if available
+            - duration (float or None): Duration in seconds
     """
-    audio = File(filepath)
     ext = os.path.splitext(filepath)[1].lower()
+    audio = File(filepath)
     sample_rate = getattr(audio.info, 'sample_rate', 44100)
-    bits_per_sample = getattr(audio.info, 'bits_per_sample', 16)
-    return ext, sample_rate, bits_per_sample
+    bits_per_sample = getattr(audio.info, 'bits_per_sample', None)
+    bitrate = getattr(audio.info, 'bitrate', None)
+    duration = getattr(audio.info, 'length', None)
+
+    if bitrate:
+        bitrate = bitrate // 1000  # convert to kbps
+
+    return {
+        "ext": ext,
+        "sample_rate": sample_rate,
+        "bits_per_sample": bits_per_sample,
+        "bitrate": bitrate,
+        "duration": duration,
+    }
 
 
 def is_lossless(filepath):
