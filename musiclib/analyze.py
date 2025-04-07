@@ -142,14 +142,23 @@ def decide_encoding_strategy(audio_info):
 
 def is_lossless(file_path):
     """
-    Determines whether the audio file is truly lossless based on codec.
-    Returns True for FLAC, ALAC, WAV, AIFF, etc. False for MP3, AAC, etc.
+    Determines whether the audio file is truly lossless.
+    Detects by file extension and codec, but also flags FLACs
+    with suspiciously low bitrate (<700 kbps) as likely lossy sources.
     """
     ext = os.path.splitext(file_path)[1].lower()
     if ext in [".flac", ".alac", ".wav", ".aiff", ".ape"]:
         audio = File(file_path)
         if audio is None:
             return False
+
         codec = type(audio).__name__.lower()
-        return codec in ["flac", "alac", "aiff", "wavpack", "dsf"]
+        if codec not in ["flac", "alac", "aiff", "wavpack", "dsf"]:
+            return False
+
+        bitrate = getattr(audio.info, "bitrate", None)
+        if bitrate and codec == "flac" and bitrate < 700_000:
+            print(f"[⚠️] Suspicious FLAC bitrate ({bitrate // 1000} kbps): {file_path}")
+            return False  # Treat as lossy-wrapped
+        return True
     return False
