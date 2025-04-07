@@ -56,6 +56,22 @@ def is_lossless(filepath):
     return os.path.splitext(filepath)[1].lower() in LOSSLESS_EXTENSIONS
 
 
+def verify_nonempty_output(output_path: str):
+    """
+    Verifies that the output file exists and is not empty.
+
+    Args:
+        output_path (str): Path to the output file to check.
+
+    Raises:
+        RuntimeError: If the file does not exist or has a size of zero bytes.
+    """
+    if not os.path.exists(output_path):
+        raise RuntimeError(f"[✘] Output file not found: {output_path}")
+    if os.path.getsize(output_path) == 0:
+        raise RuntimeError(f"[✘] Output file is empty: {output_path}")
+
+
 def convert_to_aac(input_path, output_path, failed_dir=None, track_gain_db=None):
     """
     Converts an audio file to high-quality AAC (.m4a), optionally applying baked-in volume normalization.
@@ -101,6 +117,8 @@ def convert_to_aac(input_path, output_path, failed_dir=None, track_gain_db=None)
             shutil.copy2(input_path, fail_path)
         raise RuntimeError(f"[ERROR] Failed to convert to AAC: {input_path}\n{e.stderr.decode()}")
 
+    verify_nonempty_output(output_path)
+
 
 def convert_to_flac(input_path, output_path, failed_dir=None):
     """
@@ -129,6 +147,8 @@ def convert_to_flac(input_path, output_path, failed_dir=None):
             os.makedirs(os.path.dirname(fail_path), exist_ok=True)
             shutil.copy2(input_path, fail_path)
         raise RuntimeError(f"[ERROR] Failed to convert {input_path}:\n{e.stderr.decode()}")
+
+    verify_nonempty_output(output_path)
 
 
 def copy_metadata_and_artwork(original_path, output_path):
