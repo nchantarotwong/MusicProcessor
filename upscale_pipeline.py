@@ -166,9 +166,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     try:
-        print("\u2615 Preventing system sleep...")
+        print("* Preventing system sleep...")
         caffeine.on(display=True)
         process_library(args.input, args.output, overwrite=args.overwrite, max_workers=args.workers)
     finally:
-        print("\ud83d\udecc Re-enabling system sleep.")
+        print("* Re-enabling system sleep.")
         caffeine.off()
