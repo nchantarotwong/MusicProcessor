@@ -6,12 +6,15 @@ from musiclib.convert import ensure_dir, get_audio_info, convert_to_flac, copy_m
 from musiclib.analyze import run_rsgain, analyze_gain
 from musiclib.report import generate_reports
 
+FAILED_CONVERSION_DIR = "_failed_conversions"
 RESOURCING_FOLDER_NAME = "_flagged_for_resourcing"
 
-def process_library(input_dir, output_dir):
+def process_library(input_dir, output_dir, convert_to_flac, copy_metadata_and_artwork, run_rsgain, analyze_gain, generate_reports):
     log_data = []
     flagged_dir = os.path.join(output_dir, RESOURCING_FOLDER_NAME)
+    failed_dir = os.path.join(output_dir, FAILED_CONVERSION_DIR)
     ensure_dir(flagged_dir)
+    ensure_dir(failed_dir)
 
     for root, _, files in os.walk(input_dir):
         for file in files:
@@ -25,9 +28,13 @@ def process_library(input_dir, output_dir):
             output_folder = os.path.dirname(output_file)
             ensure_dir(output_folder)
 
-            print(f"Converting: {rel_path}")
-            convert_to_flac(input_file, output_file)
-            copy_metadata_and_artwork(input_file, output_file)
+            try:
+                print(f"Converting: {rel_path}")
+                convert_to_flac(input_file, output_file, failed_dir=failed_dir)
+                copy_metadata_and_artwork(input_file, output_file)
+            except Exception as e:
+                print(f"[ERROR] Skipping file due to conversion error: {input_file}\n{e}")
+                continue
 
     print("\nRunning ReplayGain normalization...")
     run_rsgain(output_dir)
@@ -53,10 +60,19 @@ def process_library(input_dir, output_dir):
 
     print(f"\nAll processing complete. Log saved to: {log_path}")
     print(f"Flagged files (if any) copied to: {flagged_dir}")
+    print(f"Files that failed to convert copied to: {failed_dir}")
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
         print("Usage: python upscale_pipeline.py /input/dir /output/dir")
         sys.exit(1)
 
-    process_library(sys.argv[1], sys.argv[2])
+    process_library(
+        sys.argv[1],
+        sys.argv[2],
+        convert_to_flac,
+        copy_metadata_and_artwork,
+        run_rsgain,
+        analyze_gain,
+        generate_reports
+    )
