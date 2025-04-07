@@ -5,7 +5,13 @@ import json
 
 import caffeine
 
-from musiclib.convert import ensure_dir, convert_to_aac, convert_to_flac, copy_metadata_and_artwork, is_lossless
+from musiclib.convert import (
+    ensure_dir,
+    convert_to_flac,
+    convert_to_aac,
+    copy_metadata_and_artwork,
+    is_lossless,
+)
 from musiclib.analyze import run_rsgain, analyze_gain
 from musiclib.report import generate_reports
 
@@ -13,7 +19,23 @@ FAILED_CONVERSION_DIR = "_failed_conversions"
 RESOURCING_FOLDER_NAME = "_flagged_for_resourcing"
 
 
-def process_library(input_dir, output_dir, convert_to_flac, copy_metadata_and_artwork, run_rsgain, analyze_gain, generate_reports):
+def process_library(input_dir, output_dir):
+    """
+    Processes a music library by converting, normalizing, tagging, analyzing, and reporting.
+
+    This function:
+      - Walks the input directory recursively
+      - Converts files to FLAC or AAC depending on their format
+      - Preserves metadata and folder structure
+      - Applies ReplayGain normalization for FLAC files
+      - Analyzes audio loudness and clipping risk
+      - Flags and copies problematic files
+      - Outputs HTML, Markdown, and JSON reports
+
+    Args:
+        input_dir (str): Path to the input music folder.
+        output_dir (str): Path to write the converted and analyzed output.
+    """
     log_data = []
     flagged_dir = os.path.join(output_dir, RESOURCING_FOLDER_NAME)
     failed_dir = os.path.join(output_dir, FAILED_CONVERSION_DIR)
@@ -94,16 +116,7 @@ if __name__ == "__main__":
         print("☕ Preventing system sleep...")
         caffeine.on(display=True)
 
-        process_library(
-            args.input,
-            args.output,
-            convert_to_flac,
-            copy_metadata_and_artwork,
-            run_rsgain,
-            analyze_gain,
-            generate_reports
-        )
-
+        process_library(args.input, args.output,)
     finally:
         print("💤 Re-enabling system sleep.")
         caffeine.off()

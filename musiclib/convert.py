@@ -12,11 +12,29 @@ LOSSLESS_EXTENSIONS = {'.flac', '.alac', '.wav', '.aiff', '.aif'}
 
 
 def ensure_dir(path):
+    """
+    Ensures that a directory exists, creating it if necessary.
+
+    Args:
+        path (str): The directory path to create.
+    """
     if not os.path.exists(path):
         os.makedirs(path)
 
 
 def get_audio_info(filepath):
+    """
+    Extracts basic audio info from a file.
+
+    Args:
+        filepath (str): Path to the audio file.
+
+    Returns:
+        tuple: A tuple containing:
+            - ext (str): File extension (lowercase).
+            - sample_rate (int): Sample rate in Hz.
+            - bits_per_sample (int): Bit depth if available, default is 16.
+    """
     audio = File(filepath)
     ext = os.path.splitext(filepath)[1].lower()
     sample_rate = getattr(audio.info, 'sample_rate', 44100)
@@ -25,10 +43,31 @@ def get_audio_info(filepath):
 
 
 def is_lossless(filepath):
+    """
+    Checks whether a file extension corresponds to a known lossless format.
+
+    Args:
+        filepath (str): Path to the audio file.
+
+    Returns:
+        bool: True if the file is in a lossless format, False otherwise.
+    """
     return os.path.splitext(filepath)[1].lower() in LOSSLESS_EXTENSIONS
 
 
 def convert_to_aac(input_path, output_path, failed_dir=None, track_gain_db=None):
+    """
+    Converts an audio file to high-quality AAC (.m4a), optionally applying baked-in volume normalization.
+
+    Args:
+        input_path (str): Path to the input audio file.
+        output_path (str): Path where the output .m4a file should be saved.
+        failed_dir (str, optional): Directory where failed input files should be copied for inspection.
+        track_gain_db (float or str, optional): ReplayGain value in dB to apply as volume adjustment.
+
+    Raises:
+        RuntimeError: If ffmpeg fails during conversion.
+    """
     # Ensure .m4a extension
     if not output_path.endswith(".m4a"):
         output_path = os.path.splitext(output_path)[0] + ".m4a"
@@ -61,6 +100,17 @@ def convert_to_aac(input_path, output_path, failed_dir=None, track_gain_db=None)
 
 
 def convert_to_flac(input_path, output_path, failed_dir=None):
+    """
+    Converts an audio file to 24-bit / 96kHz FLAC format.
+
+    Args:
+        input_path (str): Path to the input audio file.
+        output_path (str): Path to the output .flac file.
+        failed_dir (str, optional): Directory to store failed input files for manual review.
+
+    Raises:
+        RuntimeError: If ffmpeg fails to convert the file.
+    """
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
         "-ar", str(TARGET_SAMPLE_RATE),
@@ -79,6 +129,17 @@ def convert_to_flac(input_path, output_path, failed_dir=None):
 
 
 def copy_metadata_and_artwork(original_path, output_path):
+    """
+    Copies metadata and embedded artwork from the original file to the output file.
+
+    Args:
+        original_path (str): Path to the source audio file.
+        output_path (str): Path to the destination audio file (.flac or .m4a).
+
+    Notes:
+        - FLAC output uses Vorbis comment fields.
+        - AAC (.m4a) uses MP4 tags, with limited support for artwork and basic fields.
+    """
     original = File(original_path)
     ext = os.path.splitext(output_path)[1].lower()
 
