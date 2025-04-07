@@ -3,6 +3,8 @@ import os
 import shutil
 import json
 
+from concurrent.futures import ProcessPoolExecutor, as_completed
+
 import caffeine
 
 from musiclib.convert import (
@@ -12,16 +14,70 @@ from musiclib.convert import (
     copy_metadata_and_artwork,
     is_lossless,
 )
-from musiclib.analyze import run_rsgain, analyze_gain
+from musiclib.analyze import run_rsgain, analyze_gain, get_audio_info, decide_encoding_strategy
 from musiclib.report import generate_reports
 
 FAILED_CONVERSION_DIR = "_failed_conversions"
 RESOURCING_FOLDER_NAME = "_flagged_for_resourcing"
 
+
+def process_one_file(input_path, output_path, filters):
+    try:
+        audio_info = get_audio_info(input_path)
+        strategy = decide_encoding_strategy(audio_info)
+        bitrate = strategy.get("bitrate", "256k")
+
+        print(f"Converting: {input_path} → {output_path} [{strategy['format']} {bitrate}]")
+
+        if strategy["format"] == "flac":
+            convert_to_flac(input_path, output_path, failed_dir=FAILED_CONVERSION_DIR)
+        else:
+            gain = None
+            try:
+                gain_analysis = analyze_gain(input_path)
+                gain = gain_analysis.get("track_gain")
+            except Exception:
+                pass  # Gain analysis optional for AAC
+
+            convert_to_aac(
+                input_path,
+                output_path,
+                failed_dir=FAILED_CONVERSION_DIR,
+                track_gain_db=gain,
+                bitrate=bitrate,
+                metadata_extra={
+                    "original_bitrate": str(audio_info["bitrate"]),
+                    "original_sample_rate": str(audio_info["sample_rate"]),
+                    "source_format": audio_info["ext"][1:],
+                },
+            )
+
+        copy_metadata_and_artwork(input_path, output_path)
+        return output_path
+    except Exception as e:
+        return f"[✘] {input_path} failed: {str(e)}"
+
+
+def process_all_files(file_pairs, max_workers=None):
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        futures = [
+            executor.submit(process_one_file, in_path, out_path, None)
+            for in_path, out_path in file_pairs
+        ]
+
+        for future in as_completed(futures):
+            result = future.result()
+            if isinstance(result, str) and result.startswith("[✘]"):
+                print(result)
+            else:
+                print(f"[✔] Processed: {result}")
+
+
 def should_process(output_file, overwrite=False):
     return overwrite or not os.path.exists(output_file)
 
-def process_library(input_dir, output_dir):
+
+def process_library(input_dir, output_dir, overwrite=False, max_workers=None):
     """
     Processes a music library by converting, normalizing, tagging, analyzing, and reporting.
 
@@ -44,6 +100,8 @@ def process_library(input_dir, output_dir):
     ensure_dir(flagged_dir)
     ensure_dir(failed_dir)
 
+    file_jobs = []
+
     for root, _, files in os.walk(input_dir):
         for file in files:
             ext = os.path.splitext(file)[1].lower()
@@ -53,32 +111,21 @@ def process_library(input_dir, output_dir):
             input_file = os.path.join(root, file)
             rel_path = os.path.relpath(input_file, input_dir)
             output_base = os.path.splitext(os.path.join(output_dir, rel_path))[0]
-            if is_lossless(input_file):
-                output_file = output_base + ".flac"
-            else:
-                output_file = output_base + ".m4a"
+            output_file = output_base + ".flac" if is_lossless(input_file) else output_base + ".m4a"
 
             output_folder = os.path.dirname(output_file)
             ensure_dir(output_folder)
 
-            if not should_process(output_file, args.overwrite):
+            if not should_process(output_file, overwrite):
                 print(f"[✔] Skipping {output_file} (already exists)")
                 continue
 
-            try:
-                print(f"Converting: {rel_path}")
-                if is_lossless(input_file):
-                    convert_to_flac(input_file, output_file, failed_dir=FAILED_CONVERSION_DIR)
-                else:
-                    convert_to_aac(input_file, output_file)
-                    analysis = analyze_gain(input_file)
-                    gain = analysis.get("track_gain")
-                    convert_to_aac(input_file, output_file, failed_dir=FAILED_CONVERSION_DIR, track_gain_db=gain)
+            file_jobs.append((input_file, output_file))
 
-                copy_metadata_and_artwork(input_file, output_file)
-            except Exception as e:
-                print(f"[ERROR] Skipping file due to conversion error: {input_file}\n{e}")
-                continue
+    if file_jobs:
+        process_all_files(file_jobs, max_workers=max_workers)
+    else:
+        print("[ℹ] No files to process.")
 
     print("\nRunning ReplayGain normalization...")
     try:
@@ -116,14 +163,14 @@ if __name__ == "__main__":
     parser.add_argument("input", help="Path to input directory")
     parser.add_argument("output", help="Path to output directory")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files")
+    parser.add_argument("--workers", type=int, default=None, help="Number of parallel workers to use")
 
     args = parser.parse_args()
 
     try:
-        print("☕ Preventing system sleep...")
+        print("\u2615 Preventing system sleep...")
         caffeine.on(display=True)
-
-        process_library(args.input, args.output)
+        process_library(args.input, args.output, overwrite=args.overwrite, max_workers=args.workers)
     finally:
-        print("💤 Re-enabling system sleep.")
+        print("\ud83d\udecc Re-enabling system sleep.")
         caffeine.off()

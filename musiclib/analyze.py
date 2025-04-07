@@ -1,3 +1,4 @@
+import os
 import subprocess
 from mutagen import File
 
@@ -77,3 +78,63 @@ def analyze_gain(filepath):
         except Exception:
             pass
     return result
+
+
+def get_audio_info(filepath):
+    """
+    Extracts basic audio info from a file.
+
+    Args:
+        filepath (str): Path to the audio file.
+
+    Returns:
+        dict: A dictionary containing:
+            - ext (str): File extension (lowercase)
+            - sample_rate (int): Sample rate in Hz
+            - bits_per_sample (int or None): Bit depth if available
+            - bitrate (int or None): Bitrate in kbps, if available
+            - duration (float or None): Duration in seconds
+    """
+    ext = os.path.splitext(filepath)[1].lower()
+    audio = File(filepath)
+    sample_rate = getattr(audio.info, 'sample_rate', 44100)
+    bits_per_sample = getattr(audio.info, 'bits_per_sample', None)
+    bitrate = getattr(audio.info, 'bitrate', None)
+    duration = getattr(audio.info, 'length', None)
+
+    if bitrate:
+        bitrate = bitrate // 1000  # convert to kbps
+
+    return {
+        "ext": ext,
+        "sample_rate": sample_rate,
+        "bits_per_sample": bits_per_sample,
+        "bitrate": bitrate,
+        "duration": duration,
+    }
+
+
+def decide_encoding_strategy(audio_info):
+    """
+    Decides whether to encode as FLAC or AAC, and at what bitrate.
+
+    Args:
+        audio_info (dict): Output of get_audio_info().
+
+    Returns:
+        dict: Encoding strategy, e.g.:
+              {"format": "aac", "bitrate": "160k"}
+              or {"format": "flac"}
+    """
+    ext = audio_info["ext"]
+    bitrate = audio_info["bitrate"]
+
+    if ext in [".mp3", ".m4a"] and bitrate:
+        if bitrate < 192:
+            return {"format": "aac", "bitrate": "160k"}
+        elif bitrate < 256:
+            return {"format": "aac", "bitrate": "192k"}
+        else:
+            return {"format": "aac", "bitrate": "256k"}
+    else:
+        return {"format": "flac"}
