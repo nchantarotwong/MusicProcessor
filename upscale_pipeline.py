@@ -106,10 +106,6 @@ if __name__ == "__main__":
     parser.add_argument("input", help="Path to input directory")
     parser.add_argument("output", help="Path to output directory")
 
-    # Future expansion (e.g.):
-    # parser.add_argument("--normalize-all", action="store_true", help="Apply gain to all formats, not just FLAC")
-    # parser.add_argument("--dry-run", action="store_true", help="Simulate without writing files")
-
     args = parser.parse_args()
 
     try:
