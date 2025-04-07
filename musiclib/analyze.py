@@ -47,6 +47,7 @@ def analyze_gain(filepath):
             - potential_clipping (bool): True if track peak >= 1.0
             - resourcing_recommended (bool): True if file is too quiet or clips
     """
+    print(f'Analyzing gain on: ({filepath})...')
     audio = File(filepath)
     result = {
         "path": filepath,

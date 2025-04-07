@@ -81,7 +81,11 @@ def process_library(input_dir, output_dir):
                 continue
 
     print("\nRunning ReplayGain normalization...")
-    run_rsgain(output_dir)
+    try:
+        run_rsgain(output_dir)
+    except RuntimeError as e:
+        print(f"[✘] ReplayGain failed: {e}")
+        raise
 
     print("Analyzing and flagging...")
     for root, _, files in os.walk(output_dir):
