@@ -81,10 +81,7 @@ def convert_to_aac(
 
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
-        "-vn",  # disable video streams entirely
-        "-sn",  # disable subtitle streams
-        "-dn",  # disable data streams
-        "-map", "0:a",  # only audio
+        "-map", "0:a:0",
         *(["-af", ",".join(filters)] if filters else []),
         "-ar", str(TARGET_AAC_SAMPLE_RATE),
         "-c:a", "aac" if strategy["format"] == "aac" else "flac",
@@ -98,8 +95,6 @@ def convert_to_aac(
     if metadata_extra:
         for key, value in metadata_extra.items():
             cmd.extend(["-metadata", f"{key}={value}"])
-
-    cmd.append(output_path)
 
     try:
         subprocess.run(cmd, check=True)
