@@ -1,5 +1,5 @@
+import argparse
 import os
-import sys
 import shutil
 import json
 
@@ -11,6 +11,7 @@ from musiclib.report import generate_reports
 
 FAILED_CONVERSION_DIR = "_failed_conversions"
 RESOURCING_FOLDER_NAME = "_flagged_for_resourcing"
+
 
 def process_library(input_dir, output_dir, convert_to_flac, copy_metadata_and_artwork, run_rsgain, analyze_gain, generate_reports):
     log_data = []
@@ -77,21 +78,32 @@ def process_library(input_dir, output_dir, convert_to_flac, copy_metadata_and_ar
     print(f"Flagged files (if any) copied to: {flagged_dir}")
     print(f"Files that failed to convert copied to: {failed_dir}")
 
+
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: python upscale_pipeline.py /input/dir /output/dir")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(description="MusicProcessor: Normalize and convert a music library.")
+    parser.add_argument("input", help="Path to input directory")
+    parser.add_argument("output", help="Path to output directory")
+
+    # Future expansion (e.g.):
+    # parser.add_argument("--normalize-all", action="store_true", help="Apply gain to all formats, not just FLAC")
+    # parser.add_argument("--dry-run", action="store_true", help="Simulate without writing files")
+
+    args = parser.parse_args()
 
     try:
+        print("☕ Preventing system sleep...")
+        caffeine.on(display=True)
+
         process_library(
-            sys.argv[1],
-            sys.argv[2],
+            args.input,
+            args.output,
             convert_to_flac,
             copy_metadata_and_artwork,
             run_rsgain,
             analyze_gain,
             generate_reports
         )
+
     finally:
         print("💤 Re-enabling system sleep.")
         caffeine.off()

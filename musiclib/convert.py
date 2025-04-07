@@ -10,9 +10,11 @@ TARGET_BIT_DEPTH = 24
 
 LOSSLESS_EXTENSIONS = {'.flac', '.alac', '.wav', '.aiff', '.aif'}
 
+
 def ensure_dir(path):
     if not os.path.exists(path):
         os.makedirs(path)
+
 
 def get_audio_info(filepath):
     audio = File(filepath)
@@ -21,25 +23,10 @@ def get_audio_info(filepath):
     bits_per_sample = getattr(audio.info, 'bits_per_sample', 16)
     return ext, sample_rate, bits_per_sample
 
+
 def is_lossless(filepath):
     return os.path.splitext(filepath)[1].lower() in LOSSLESS_EXTENSIONS
 
-def convert_to_flac(input_path, output_path, failed_dir=None):
-    cmd = [
-        "ffmpeg", "-y", "-i", input_path,
-        "-ar", str(TARGET_SAMPLE_RATE),
-        "-sample_fmt", "s32", "-c:a", "flac",
-        output_path
-    ]
-    try:
-        subprocess.run(cmd, check=True, stderr=subprocess.PIPE)
-    except subprocess.CalledProcessError as e:
-        if failed_dir:
-            rel_path = os.path.relpath(input_path, start=os.path.commonpath([input_path, failed_dir]))
-            fail_path = os.path.join(failed_dir, rel_path)
-            os.makedirs(os.path.dirname(fail_path), exist_ok=True)
-            shutil.copy2(input_path, fail_path)
-        raise RuntimeError(f"[ERROR] Failed to convert {input_path}:\n{e.stderr.decode()}")
 
 def convert_to_aac(input_path, output_path, failed_dir=None, track_gain_db=None):
     # Ensure .m4a extension
@@ -71,6 +58,25 @@ def convert_to_aac(input_path, output_path, failed_dir=None, track_gain_db=None)
             os.makedirs(os.path.dirname(fail_path), exist_ok=True)
             shutil.copy2(input_path, fail_path)
         raise RuntimeError(f"[ERROR] Failed to convert to AAC: {input_path}\n{e.stderr.decode()}")
+
+
+def convert_to_flac(input_path, output_path, failed_dir=None):
+    cmd = [
+        "ffmpeg", "-y", "-i", input_path,
+        "-ar", str(TARGET_SAMPLE_RATE),
+        "-sample_fmt", "s32", "-c:a", "flac",
+        output_path
+    ]
+    try:
+        subprocess.run(cmd, check=True, stderr=subprocess.PIPE)
+    except subprocess.CalledProcessError as e:
+        if failed_dir:
+            rel_path = os.path.relpath(input_path, start=os.path.commonpath([input_path, failed_dir]))
+            fail_path = os.path.join(failed_dir, rel_path)
+            os.makedirs(os.path.dirname(fail_path), exist_ok=True)
+            shutil.copy2(input_path, fail_path)
+        raise RuntimeError(f"[ERROR] Failed to convert {input_path}:\n{e.stderr.decode()}")
+
 
 def copy_metadata_and_artwork(original_path, output_path):
     original = File(original_path)

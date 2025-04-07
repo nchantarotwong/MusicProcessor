@@ -1,6 +1,7 @@
 import json
 import os
 
+
 def generate_reports(json_path, output_dir):
     with open(json_path, "r", encoding="utf-8") as f:
         data = json.load(f)
