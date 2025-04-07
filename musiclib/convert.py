@@ -41,15 +41,27 @@ def convert_to_flac(input_path, output_path, failed_dir=None):
             shutil.copy2(input_path, fail_path)
         raise RuntimeError(f"[ERROR] Failed to convert {input_path}:\n{e.stderr.decode()}")
 
-def convert_to_aac(input_path, output_path, failed_dir=None):
+def convert_to_aac(input_path, output_path, failed_dir=None, track_gain_db=None):
     # Ensure .m4a extension
     if not output_path.endswith(".m4a"):
         output_path = os.path.splitext(output_path)[0] + ".m4a"
+
+    # Build filter chain if gain is specified
+    filters = []
+    if track_gain_db is not None:
+        try:
+            gain_val = float(track_gain_db)
+            filters.append(f"volume={gain_val}dB")
+        except ValueError:
+            print(f"[WARN] Invalid track_gain value: {track_gain_db} — skipping gain filter")
+
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
+        *(["-af", ",".join(filters)] if filters else []),
         "-c:a", "aac", "-b:a", "256k",
         output_path
     ]
+
     try:
         subprocess.run(cmd, check=True, stderr=subprocess.PIPE)
     except subprocess.CalledProcessError as e:

@@ -39,9 +39,13 @@ def process_library(input_dir, output_dir, convert_to_flac, copy_metadata_and_ar
             try:
                 print(f"Converting: {rel_path}")
                 if is_lossless(input_file):
-                    convert_to_flac(input_file, output_file)
+                    convert_to_flac(input_file, output_file, failed_dir=FAILED_CONVERSION_DIR)
                 else:
                     convert_to_aac(input_file, output_file)
+                    analysis = analyze_gain(input_file)
+                    gain = analysis.get("track_gain")
+                    convert_to_aac(input_file, output_file, failed_dir=FAILED_CONVERSION_DIR, track_gain_db=gain)
+
                 copy_metadata_and_artwork(input_file, output_file)
             except Exception as e:
                 print(f"[ERROR] Skipping file due to conversion error: {input_file}\n{e}")
