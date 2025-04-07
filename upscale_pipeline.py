@@ -5,7 +5,7 @@ import json
 
 import caffeine
 
-from musiclib.convert import ensure_dir, get_audio_info, convert_to_flac, copy_metadata_and_artwork
+from musiclib.convert import ensure_dir, convert_to_aac, convert_to_flac, copy_metadata_and_artwork, is_lossless
 from musiclib.analyze import run_rsgain, analyze_gain
 from musiclib.report import generate_reports
 
@@ -27,13 +27,21 @@ def process_library(input_dir, output_dir, convert_to_flac, copy_metadata_and_ar
 
             input_file = os.path.join(root, file)
             rel_path = os.path.relpath(input_file, input_dir)
-            output_file = os.path.join(output_dir, os.path.splitext(rel_path)[0] + ".flac")
+            output_base = os.path.splitext(os.path.join(output_dir, rel_path))[0]
+            if is_lossless(input_file):
+                output_file = output_base + ".flac"
+            else:
+                output_file = output_base + ".m4a"
+
             output_folder = os.path.dirname(output_file)
             ensure_dir(output_folder)
 
             try:
                 print(f"Converting: {rel_path}")
-                convert_to_flac(input_file, output_file, failed_dir=failed_dir)
+                if is_lossless(input_file):
+                    convert_to_flac(input_file, output_file)
+                else:
+                    convert_to_aac(input_file, output_file)
                 copy_metadata_and_artwork(input_file, output_file)
             except Exception as e:
                 print(f"[ERROR] Skipping file due to conversion error: {input_file}\n{e}")
