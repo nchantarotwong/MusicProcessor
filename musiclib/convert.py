@@ -70,6 +70,32 @@ def is_lossless(filepath):
     return os.path.splitext(filepath)[1].lower() in LOSSLESS_EXTENSIONS
 
 
+def decide_encoding_strategy(audio_info):
+    """
+    Decides whether to encode as FLAC or AAC, and at what bitrate.
+
+    Args:
+        audio_info (dict): Output of get_audio_info().
+
+    Returns:
+        dict: Encoding strategy, e.g.:
+              {"format": "aac", "bitrate": "160k"}
+              or {"format": "flac"}
+    """
+    ext = audio_info["ext"]
+    bitrate = audio_info["bitrate"]
+
+    if ext in [".mp3", ".m4a"] and bitrate:
+        if bitrate < 192:
+            return {"format": "aac", "bitrate": "160k"}
+        elif bitrate < 256:
+            return {"format": "aac", "bitrate": "192k"}
+        else:
+            return {"format": "aac", "bitrate": "256k"}
+    else:
+        return {"format": "flac"}
+
+
 def verify_nonempty_output(output_path: str):
     """
     Verifies that the output file exists and is not empty.
@@ -112,12 +138,23 @@ def convert_to_aac(input_path, output_path, failed_dir=None, track_gain_db=None)
         except ValueError:
             print(f"[WARN] Invalid track_gain value: {track_gain_db} — skipping gain filter")
 
+    audio_info = get_audio_info(input_path)
+    strategy = decide_encoding_strategy(audio_info)
+    bitrate = strategy.get("bitrate", "256k")  # default if not using AAC
+
+    if not audio_info["bitrate"]:
+        raise RuntimeError(f"Missing bitrate info: {input_path}")
+
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
-        "-map", "0:a:0",  # Only map the first audio stream
+        "-map", "0:a:0",
         *(["-af", ",".join(filters)] if filters else []),
-        "-ar", str(TARGET_AAC_SAMPLE_RATE),  # Target sample rate for AAC
-        "-c:a", "aac", "-b:a", "256k",
+        "-ar", str(TARGET_AAC_SAMPLE_RATE),
+        "-c:a", "aac" if strategy["format"] == "aac" else "flac",
+        *(["-b:a", bitrate] if strategy["format"] == "aac" else []),
+        "-metadata", f"original_bitrate={audio_info['bitrate']}",
+        "-metadata", f"original_sample_rate={audio_info['sample_rate']}",
+        "-metadata", f"source_format={audio_info['ext'][1:]}",
         output_path
     ]
 
