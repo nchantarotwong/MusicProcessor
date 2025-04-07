@@ -46,7 +46,6 @@ def convert_to_aac(
     output_path,
     failed_dir=None,
     track_gain_db=None,
-    bitrate="256k",
     metadata_extra=None
 ):
     """
@@ -57,7 +56,6 @@ def convert_to_aac(
         output_path (str): Output AAC file path.
         failed_dir (str): Optional directory to copy input to on failure.
         track_gain_db (float): Optional track gain adjustment to apply via ffmpeg filter.
-        bitrate (str): Target AAC bitrate (e.g., "192k").
         metadata_extra (dict): Additional metadata tags to embed in the output.
     """
     # Ensure .m4a extension

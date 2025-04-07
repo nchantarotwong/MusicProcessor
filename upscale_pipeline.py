@@ -43,7 +43,6 @@ def process_one_file(input_path, output_path, filters):
                 output_path,
                 failed_dir=FAILED_CONVERSION_DIR,
                 track_gain_db=gain,
-                bitrate=bitrate,
                 metadata_extra={
                     "original_bitrate": str(audio_info["bitrate"]),
                     "original_sample_rate": str(audio_info["sample_rate"]),
