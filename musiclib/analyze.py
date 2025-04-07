@@ -17,7 +17,7 @@ def run_rsgain(directory):
         RuntimeError: If `rsgain` fails during execution.
     """
     try:
-        subprocess.run(['rsgain', 'easy', '--smart', '--recursive', directory], check=True)
+        subprocess.run(['rsgain', 'easy', '--skip-existing', '--multithread=4', directory], check=True)
     except FileNotFoundError as e:
         raise FileNotFoundError(
             "Error: 'rsgain' not found. Please install it and ensure it's in your PATH."
