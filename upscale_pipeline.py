@@ -18,6 +18,8 @@ from musiclib.report import generate_reports
 FAILED_CONVERSION_DIR = "_failed_conversions"
 RESOURCING_FOLDER_NAME = "_flagged_for_resourcing"
 
+def should_process(output_file, overwrite=False):
+    return overwrite or not os.path.exists(output_file)
 
 def process_library(input_dir, output_dir):
     """
@@ -58,6 +60,10 @@ def process_library(input_dir, output_dir):
 
             output_folder = os.path.dirname(output_file)
             ensure_dir(output_folder)
+
+            if not should_process(output_file, args.overwrite):
+                print(f"[✔] Skipping {output_file} (already exists)")
+                continue
 
             try:
                 print(f"Converting: {rel_path}")
@@ -105,6 +111,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MusicProcessor: Normalize and convert a music library.")
     parser.add_argument("input", help="Path to input directory")
     parser.add_argument("output", help="Path to output directory")
+    parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files")
 
     args = parser.parse_args()
 
