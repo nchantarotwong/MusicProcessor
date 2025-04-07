@@ -86,7 +86,7 @@ def convert_to_aac(input_path, output_path, failed_dir=None, track_gain_db=None)
         "ffmpeg", "-y", "-i", input_path,
         "-map", "0:a:0",  # Only map the first audio stream
         *(["-af", ",".join(filters)] if filters else []),
-        "-ar", TARGET_AAC_SAMPLE_RATE,  # Target sample rate for AAC
+        "-ar", str(TARGET_AAC_SAMPLE_RATE),  # Target sample rate for AAC
         "-c:a", "aac", "-b:a", "256k",
         output_path
     ]
