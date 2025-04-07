@@ -5,7 +5,8 @@ from mutagen import File
 from mutagen.flac import FLAC
 from mutagen.mp4 import MP4, MP4Cover
 
-TARGET_SAMPLE_RATE = 96000
+TARGET_FLAC_SAMPLE_RATE = 96000
+TARGET_AAC_SAMPLE_RATE = 48000
 TARGET_BIT_DEPTH = 24
 
 LOSSLESS_EXTENSIONS = {'.flac', '.alac', '.wav', '.aiff', '.aif'}
@@ -85,6 +86,7 @@ def convert_to_aac(input_path, output_path, failed_dir=None, track_gain_db=None)
         "ffmpeg", "-y", "-i", input_path,
         "-map", "0:a:0",  # Only map the first audio stream
         *(["-af", ",".join(filters)] if filters else []),
+        "-ar", TARGET_AAC_SAMPLE_RATE,  # Target sample rate for AAC
         "-c:a", "aac", "-b:a", "256k",
         output_path
     ]
@@ -114,7 +116,7 @@ def convert_to_flac(input_path, output_path, failed_dir=None):
     """
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
-        "-ar", str(TARGET_SAMPLE_RATE),
+        "-ar", str(TARGET_FLAC_SAMPLE_RATE),
         "-sample_fmt", "s32", "-c:a", "flac",
         output_path
     ]
