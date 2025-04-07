@@ -12,9 +12,8 @@ from musiclib.convert import (
     convert_to_flac,
     convert_to_aac,
     copy_metadata_and_artwork,
-    is_lossless,
 )
-from musiclib.analyze import run_rsgain, analyze_gain, get_audio_info, decide_encoding_strategy
+from musiclib.analyze import run_rsgain, analyze_gain, get_audio_info, decide_encoding_strategy, is_lossless
 from musiclib.report import generate_reports
 
 FAILED_CONVERSION_DIR = "_failed_conversions"

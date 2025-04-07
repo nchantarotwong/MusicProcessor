@@ -25,19 +25,6 @@ def ensure_dir(path):
         os.makedirs(path)
 
 
-def is_lossless(filepath):
-    """
-    Checks whether a file extension corresponds to a known lossless format.
-
-    Args:
-        filepath (str): Path to the audio file.
-
-    Returns:
-        bool: True if the file is in a lossless format, False otherwise.
-    """
-    return os.path.splitext(filepath)[1].lower() in LOSSLESS_EXTENSIONS
-
-
 def verify_nonempty_output(output_path: str):
     """
     Verifies that the output file exists and is not empty.

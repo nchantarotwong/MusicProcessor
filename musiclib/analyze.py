@@ -138,3 +138,18 @@ def decide_encoding_strategy(audio_info):
             return {"format": "aac", "bitrate": "256k"}
     else:
         return {"format": "flac"}
+
+
+def is_lossless(file_path):
+    """
+    Determines whether the audio file is truly lossless based on codec.
+    Returns True for FLAC, ALAC, WAV, AIFF, etc. False for MP3, AAC, etc.
+    """
+    ext = os.path.splitext(file_path)[1].lower()
+    if ext in [".flac", ".alac", ".wav", ".aiff", ".ape"]:
+        audio = File(file_path)
+        if audio is None:
+            return False
+        codec = type(audio).__name__.lower()
+        return codec in ["flac", "alac", "aiff", "wavpack", "dsf"]
+    return False
