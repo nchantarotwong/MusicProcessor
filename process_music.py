@@ -129,6 +129,8 @@ def process_library(input_dir, output_dir, overwrite=False, max_workers=None):
 
     if file_jobs:
         process_all_files(file_jobs, max_workers=max_workers)
+        print(f"Processed {len(file_jobs)} files.")
+        print(f"Flagged: {len([d for d in log_data if d['resourcing_recommended']])}")
     else:
         print("[ℹ] No files to process.")
 
