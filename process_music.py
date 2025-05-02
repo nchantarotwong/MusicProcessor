@@ -1,6 +1,7 @@
 import argparse
 import os
 import shutil
+import tempfile
 import json
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -21,6 +22,7 @@ from musiclib.analyze import (
     looks_lossless,
     run_rsgain
 )
+from musiclib.artwork import extract_embedded_artwork, strip_embedded_artwork
 from musiclib.report import generate_reports
 
 FAILED_CONVERSION_DIR = "_failed_conversions"
@@ -29,6 +31,8 @@ RESOURCING_FOLDER_NAME = "_flagged_for_resourcing"
 
 def process_one_file(input_path, output_path):
     try:
+        strip_embedded_artwork(input_path)
+
         audio_info = get_audio_info(input_path)
         strategy = decide_encoding_strategy(audio_info)
         bitrate = choose_aac_bitrate(audio_info)
@@ -57,7 +61,28 @@ def process_one_file(input_path, output_path):
                 },
             )
 
+        # 🖼️ Extract artwork intelligently after conversion
+        cover_path = os.path.join(os.path.dirname(output_path), "cover.jpg")
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+            temp_cover_path = tmp.name
+
+        if extract_embedded_artwork(input_path, temp_cover_path):
+            if not os.path.exists(cover_path):
+                shutil.move(temp_cover_path, cover_path)
+            else:
+                existing_size = os.path.getsize(cover_path)
+                new_size = os.path.getsize(temp_cover_path)
+                if new_size > existing_size:
+                    shutil.move(temp_cover_path, cover_path)
+                else:
+                    os.remove(temp_cover_path)
+        else:
+            if os.path.exists(temp_cover_path):
+                os.remove(temp_cover_path)
+
         copy_metadata_and_artwork(input_path, output_path)
+
         return output_path
     except Exception as e:
         return f"[✘] {input_path} failed: {str(e)}"
