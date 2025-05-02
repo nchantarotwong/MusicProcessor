@@ -27,7 +27,7 @@ FAILED_CONVERSION_DIR = "_failed_conversions"
 RESOURCING_FOLDER_NAME = "_flagged_for_resourcing"
 
 
-def process_one_file(input_path, output_path, filters):
+def process_one_file(input_path, output_path):
     try:
         audio_info = get_audio_info(input_path)
         strategy = decide_encoding_strategy(audio_info)
@@ -66,7 +66,7 @@ def process_one_file(input_path, output_path, filters):
 def process_all_files(file_pairs, max_workers=None):
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = [
-            executor.submit(process_one_file, in_path, out_path, None)
+            executor.submit(process_one_file, in_path, out_path)
             for in_path, out_path in file_pairs
         ]
 
