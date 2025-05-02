@@ -13,7 +13,7 @@ from musiclib.convert import (
     convert_to_aac,
     copy_metadata_and_artwork,
 )
-from musiclib.analyze import run_rsgain, analyze_gain, get_audio_info, decide_encoding_strategy, is_lossless
+from musiclib.analyze import run_rsgain, analyze_gain, get_audio_info, decide_encoding_strategy, looks_lossless
 from musiclib.report import generate_reports
 
 FAILED_CONVERSION_DIR = "_failed_conversions"
@@ -109,7 +109,7 @@ def process_library(input_dir, output_dir, overwrite=False, max_workers=None):
             input_file = os.path.join(root, file)
             rel_path = os.path.relpath(input_file, input_dir)
             output_base = os.path.splitext(os.path.join(output_dir, rel_path))[0]
-            output_file = output_base + ".flac" if is_lossless(input_file) else output_base + ".m4a"
+            output_file = output_base + ".flac" if looks_lossless(input_file) else output_base + ".m4a"
 
             output_folder = os.path.dirname(output_file)
             ensure_dir(output_folder)
