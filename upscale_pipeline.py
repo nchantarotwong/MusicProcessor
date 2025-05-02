@@ -13,7 +13,14 @@ from musiclib.convert import (
     convert_to_aac,
     copy_metadata_and_artwork,
 )
-from musiclib.analyze import run_rsgain, analyze_gain, get_audio_info, decide_encoding_strategy, looks_lossless
+from musiclib.analyze import (
+    analyze_gain,
+    choose_aac_bitrate,
+    decide_encoding_strategy,
+    get_audio_info,
+    looks_lossless,
+    run_rsgain
+)
 from musiclib.report import generate_reports
 
 FAILED_CONVERSION_DIR = "_failed_conversions"
@@ -24,8 +31,7 @@ def process_one_file(input_path, output_path, filters):
     try:
         audio_info = get_audio_info(input_path)
         strategy = decide_encoding_strategy(audio_info)
-        bitrate = strategy.get("bitrate", "256k")
-
+        bitrate = choose_aac_bitrate(audio_info)
         print(f"Converting: {input_path} → {output_path} [{strategy['format']} {bitrate}]")
 
         if strategy["format"] == "flac":
@@ -41,6 +47,7 @@ def process_one_file(input_path, output_path, filters):
             convert_to_aac(
                 input_path,
                 output_path,
+                bitrate=bitrate,
                 failed_dir=FAILED_CONVERSION_DIR,
                 track_gain_db=gain,
                 metadata_extra={

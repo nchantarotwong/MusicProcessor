@@ -44,6 +44,7 @@ def verify_nonempty_output(output_path: str):
 def convert_to_aac(
     input_path,
     output_path,
+    bitrate="256k",
     failed_dir=None,
     track_gain_db=None,
     metadata_extra=None
@@ -53,42 +54,29 @@ def convert_to_aac(
 
     Args:
         input_path (str): Source file path.
-        output_path (str): Output AAC file path.
-        failed_dir (str): Optional directory to copy input to on failure.
-        track_gain_db (float): Optional track gain adjustment to apply via ffmpeg filter.
-        metadata_extra (dict): Additional metadata tags to embed in the output.
+        output_path (str): Output AAC file path (.m4a).
+        bitrate (str): AAC bitrate (e.g., "128k", "192k", "256k").
+        failed_dir (str, optional): Directory to copy input to on failure.
+        track_gain_db (float, optional): ReplayGain value to bake into the output.
+        metadata_extra (dict, optional): Additional metadata tags to embed.
     """
-    # Ensure .m4a extension
     if not output_path.endswith(".m4a"):
         output_path = os.path.splitext(output_path)[0] + ".m4a"
 
-    # Build filter chain if gain is specified
     filters = []
     if track_gain_db is not None:
-        filters.append(f"volume={track_gain_db}dB")
         try:
             gain_val = float(track_gain_db)
             filters.append(f"volume={gain_val}dB")
         except ValueError:
             print(f"[WARN] Invalid track_gain value: {track_gain_db} — skipping gain filter")
 
-    audio_info = get_audio_info(input_path)
-    strategy = decide_encoding_strategy(audio_info)
-    bitrate = strategy.get("bitrate", "256k")  # default if not using AAC
-
-    if not audio_info["bitrate"]:
-        raise RuntimeError(f"Missing bitrate info: {input_path}")
-
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
         "-map", "0:a:0",
         *(["-af", ",".join(filters)] if filters else []),
         "-ar", str(TARGET_AAC_SAMPLE_RATE),
-        "-c:a", "aac" if strategy["format"] == "aac" else "flac",
-        *(["-b:a", bitrate] if strategy["format"] == "aac" else []),
-        "-metadata", f"original_bitrate={audio_info['bitrate']}",
-        "-metadata", f"original_sample_rate={audio_info['sample_rate']}",
-        "-metadata", f"source_format={audio_info['ext'][1:]}",
+        "-c:a", "aac", "-b:a", bitrate,
         output_path
     ]
 
