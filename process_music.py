@@ -36,17 +36,28 @@ def process_one_file(input_path, output_path):
         audio_info = get_audio_info(input_path)
         strategy = decide_encoding_strategy(audio_info)
         bitrate = choose_aac_bitrate(audio_info)
-        print(f"Converting: {input_path} → {output_path} [{strategy['format']} {bitrate}]")
 
-        if strategy["format"] == "flac":
+        use_format = strategy["format"]
+
+        if use_format == "skip":
+            return f"[⚠️] Skipping: {input_path} (invalid or unsupported)"
+
+        elif use_format == "copy":
+            print(f"[→] Copying: {input_path} → {output_path}")
+            shutil.copy2(input_path, output_path)
+
+        elif use_format == "flac":
+            print(f"[🎧] Converting to FLAC: {input_path} → {output_path}")
             convert_to_flac(input_path, output_path, failed_dir=FAILED_CONVERSION_DIR)
-        else:
+
+        elif use_format == "aac":
+            print(f"[🎧] Converting to AAC: {input_path} → {output_path} @ {bitrate}")
             gain = None
             try:
                 gain_analysis = analyze_gain(input_path)
                 gain = gain_analysis.get("track_gain")
             except Exception:
-                pass  # Gain analysis optional for AAC
+                pass  # gain is optional
 
             convert_to_aac(
                 input_path,
@@ -60,6 +71,9 @@ def process_one_file(input_path, output_path):
                     "source_format": audio_info["ext"][1:],
                 },
             )
+
+        else:
+            raise RuntimeError(f"Unknown encoding strategy: {format}")
 
         # 🖼️ Extract artwork intelligently after conversion
         cover_path = os.path.join(os.path.dirname(output_path), "cover.jpg")

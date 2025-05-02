@@ -157,7 +157,7 @@ def decide_encoding_strategy(audio_info):
         return {"format": "skip"}  # likely corrupt or non-audio
 
     if ext in [".mp3", ".aac", ".m4a", ".ogg", ".wma"]:
-        return {"format": "copy"}
+        return {"format": "aac"}
 
     if ext in [".flac", ".alac", ".wav", ".aiff", ".aif"]:
         return {"format": "flac"}
