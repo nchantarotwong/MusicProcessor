@@ -56,8 +56,19 @@ def process_one_file(input_path, output_path):
             try:
                 gain_analysis = analyze_gain(input_path)
                 gain = gain_analysis.get("track_gain")
-            except Exception:
-                pass  # gain is optional
+                if gain is not None:
+                    gain_val = float(gain)
+                    peak = gain_analysis.get("track_peak", 0)
+
+                    if abs(gain_val) > 15:
+                        print(f"[⚠️] High gain adjustment: {gain_val:.1f} dB for {input_path}")
+
+                        if gain_val > 15 and peak >= 0.95:
+                            print(f"[✘] Skipping gain — too risky: {gain_val:.1f} dB with peak {peak:.2f}")
+                            gain = None
+            except Exception as e:
+                print(f"[WARN] Gain analysis failed for {input_path}: {e}")
+                gain = None  # fall back
 
             convert_to_aac(
                 input_path,
