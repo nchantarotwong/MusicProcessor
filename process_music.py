@@ -29,7 +29,7 @@ FAILED_CONVERSION_DIR = "_failed_conversions"
 RESOURCING_FOLDER_NAME = "_flagged_for_resourcing"
 
 
-def process_one_file(input_path, output_path):
+def process_one_file(input_path, output_path, failed_dir):
     try:
         strip_embedded_artwork(input_path)
 
@@ -48,7 +48,7 @@ def process_one_file(input_path, output_path):
 
         elif use_format == "flac":
             print(f"[🎧] Converting to FLAC: {input_path} → {output_path}")
-            convert_to_flac(input_path, output_path, failed_dir=FAILED_CONVERSION_DIR)
+            convert_to_flac(input_path, output_path, failed_dir=failed_dir)
 
         elif use_format == "aac":
             print(f"[🎧] Converting to AAC: {input_path} → {output_path} @ {bitrate}")
@@ -74,7 +74,7 @@ def process_one_file(input_path, output_path):
                 input_path,
                 output_path,
                 bitrate=bitrate,
-                failed_dir=FAILED_CONVERSION_DIR,
+                failed_dir=failed_dir,
                 track_gain_db=gain,
                 metadata_extra={
                     "original_bitrate": str(audio_info["bitrate"]),
@@ -113,10 +113,10 @@ def process_one_file(input_path, output_path):
         return f"[✘] {input_path} failed: {str(e)}"
 
 
-def process_all_files(file_pairs, max_workers=None):
+def process_all_files(file_pairs, failed_dir, max_workers=None):
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = [
-            executor.submit(process_one_file, in_path, out_path)
+            executor.submit(process_one_file, in_path, out_path, failed_dir)
             for in_path, out_path in file_pairs
         ]
 
@@ -178,7 +178,7 @@ def process_library(input_dir, output_dir, overwrite=False, max_workers=None):
             file_jobs.append((input_file, output_file))
 
     if file_jobs:
-        process_all_files(file_jobs, max_workers=max_workers)
+        process_all_files(file_jobs, failed_dir, max_workers=max_workers)
         print(f"Processed {len(file_jobs)} files.")
         print(f"Flagged: {len([d for d in log_data if d['resourcing_recommended']])}")
     else:
