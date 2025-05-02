@@ -5,13 +5,7 @@ from mutagen import File
 from mutagen.flac import FLAC
 from mutagen.mp4 import MP4, MP4Cover
 
-from musiclib.analyze import get_audio_info, decide_encoding_strategy
-
-TARGET_FLAC_SAMPLE_RATE = 96000
-TARGET_AAC_SAMPLE_RATE = 48000
-TARGET_BIT_DEPTH = 24
-
-LOSSLESS_EXTENSIONS = {'.flac', '.alac', '.wav', '.aiff', '.aif'}
+from musiclib.constants import TARGET_AAC_SAMPLE_RATE, TARGET_FLAC_SAMPLE_RATE
 
 
 def ensure_dir(path):
