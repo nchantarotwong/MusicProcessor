@@ -80,6 +80,22 @@ def analyze_gain(filepath):
     return result
 
 
+def choose_aac_bitrate(audio_info):
+    bitrate = audio_info.get("bitrate")
+    if bitrate is None:
+        return "256k"  # fallback
+
+    kbps = bitrate // 1000
+    if kbps < 128:
+        return "128k"
+    elif kbps < 192:
+        return "160k"
+    elif kbps < 256:
+        return "192k"
+    else:
+        return "256k"
+
+
 def get_audio_info(filepath):
     """
     Extracts basic audio info from a file.
