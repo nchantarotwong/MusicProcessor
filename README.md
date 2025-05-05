@@ -45,7 +45,7 @@ brew install ffmpeg rsgain
 ## 🚀 Usage
 
 ```bash
-python upscale_pipeline.py /path/to/input /path/to/output
+python process_music.py /path/to/input /path/to/output
 ```
 
 - Your original files remain untouched.

@@ -1,6 +1,7 @@
 import argparse
 import os
 import shutil
+import tempfile
 import json
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
@@ -13,35 +14,67 @@ from musiclib.convert import (
     convert_to_aac,
     copy_metadata_and_artwork,
 )
-from musiclib.analyze import run_rsgain, analyze_gain, get_audio_info, decide_encoding_strategy, is_lossless
+from musiclib.analyze import (
+    analyze_gain,
+    choose_aac_bitrate,
+    decide_encoding_strategy,
+    get_audio_info,
+    looks_lossless,
+    run_rsgain
+)
+from musiclib.artwork import extract_embedded_artwork, strip_embedded_artwork
 from musiclib.report import generate_reports
 
 FAILED_CONVERSION_DIR = "_failed_conversions"
 RESOURCING_FOLDER_NAME = "_flagged_for_resourcing"
 
 
-def process_one_file(input_path, output_path, filters):
+def process_one_file(input_path, output_path, failed_dir):
     try:
+        strip_embedded_artwork(input_path)
+
         audio_info = get_audio_info(input_path)
         strategy = decide_encoding_strategy(audio_info)
-        bitrate = strategy.get("bitrate", "256k")
+        bitrate = choose_aac_bitrate(audio_info)
 
-        print(f"Converting: {input_path} → {output_path} [{strategy['format']} {bitrate}]")
+        use_format = strategy["format"]
 
-        if strategy["format"] == "flac":
-            convert_to_flac(input_path, output_path, failed_dir=FAILED_CONVERSION_DIR)
-        else:
+        if use_format == "skip":
+            return f"[⚠️] Skipping: {input_path} (invalid or unsupported)"
+
+        elif use_format == "copy":
+            print(f"[→] Copying: {input_path} → {output_path}")
+            shutil.copy2(input_path, output_path)
+
+        elif use_format == "flac":
+            print(f"[🎧] Converting to FLAC: {input_path} → {output_path}")
+            convert_to_flac(input_path, output_path, failed_dir=failed_dir)
+
+        elif use_format == "aac":
+            print(f"[🎧] Converting to AAC: {input_path} → {output_path} @ {bitrate}")
             gain = None
             try:
                 gain_analysis = analyze_gain(input_path)
                 gain = gain_analysis.get("track_gain")
-            except Exception:
-                pass  # Gain analysis optional for AAC
+                if gain is not None:
+                    gain_val = float(gain)
+                    peak = gain_analysis.get("track_peak", 0)
+
+                    if abs(gain_val) > 15:
+                        print(f"[⚠️] High gain adjustment: {gain_val:.1f} dB for {input_path}")
+
+                        if gain_val > 15 and peak >= 0.95:
+                            print(f"[✘] Skipping gain — too risky: {gain_val:.1f} dB with peak {peak:.2f}")
+                            gain = None
+            except Exception as e:
+                print(f"[WARN] Gain analysis failed for {input_path}: {e}")
+                gain = None  # fall back
 
             convert_to_aac(
                 input_path,
                 output_path,
-                failed_dir=FAILED_CONVERSION_DIR,
+                bitrate=bitrate,
+                failed_dir=failed_dir,
                 track_gain_db=gain,
                 metadata_extra={
                     "original_bitrate": str(audio_info["bitrate"]),
@@ -50,16 +83,40 @@ def process_one_file(input_path, output_path, filters):
                 },
             )
 
+        else:
+            raise RuntimeError(f"Unknown encoding strategy: {format}")
+
+        # 🖼️ Extract artwork intelligently after conversion
+        cover_path = os.path.join(os.path.dirname(output_path), "cover.jpg")
+
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".jpg") as tmp:
+            temp_cover_path = tmp.name
+
+        if extract_embedded_artwork(input_path, temp_cover_path):
+            if not os.path.exists(cover_path):
+                shutil.move(temp_cover_path, cover_path)
+            else:
+                existing_size = os.path.getsize(cover_path)
+                new_size = os.path.getsize(temp_cover_path)
+                if new_size > existing_size:
+                    shutil.move(temp_cover_path, cover_path)
+                else:
+                    os.remove(temp_cover_path)
+        else:
+            if os.path.exists(temp_cover_path):
+                os.remove(temp_cover_path)
+
         copy_metadata_and_artwork(input_path, output_path)
+
         return output_path
     except Exception as e:
         return f"[✘] {input_path} failed: {str(e)}"
 
 
-def process_all_files(file_pairs, max_workers=None):
+def process_all_files(file_pairs, failed_dir, max_workers=None):
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = [
-            executor.submit(process_one_file, in_path, out_path, None)
+            executor.submit(process_one_file, in_path, out_path, failed_dir)
             for in_path, out_path in file_pairs
         ]
 
@@ -109,7 +166,7 @@ def process_library(input_dir, output_dir, overwrite=False, max_workers=None):
             input_file = os.path.join(root, file)
             rel_path = os.path.relpath(input_file, input_dir)
             output_base = os.path.splitext(os.path.join(output_dir, rel_path))[0]
-            output_file = output_base + ".flac" if is_lossless(input_file) else output_base + ".m4a"
+            output_file = output_base + ".flac" if looks_lossless(input_file) else output_base + ".m4a"
 
             output_folder = os.path.dirname(output_file)
             ensure_dir(output_folder)
@@ -121,7 +178,9 @@ def process_library(input_dir, output_dir, overwrite=False, max_workers=None):
             file_jobs.append((input_file, output_file))
 
     if file_jobs:
-        process_all_files(file_jobs, max_workers=max_workers)
+        process_all_files(file_jobs, failed_dir, max_workers=max_workers)
+        print(f"Processed {len(file_jobs)} files.")
+        print(f"Flagged: {len([d for d in log_data if d['resourcing_recommended']])}")
     else:
         print("[ℹ] No files to process.")
 

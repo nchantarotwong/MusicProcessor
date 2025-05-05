@@ -80,6 +80,22 @@ def analyze_gain(filepath):
     return result
 
 
+def choose_aac_bitrate(audio_info):
+    bitrate = audio_info.get("bitrate")
+    if bitrate is None:
+        return "256k"  # fallback
+
+    kbps = bitrate // 1000
+    if kbps < 128:
+        return "128k"
+    elif kbps < 192:
+        return "160k"
+    elif kbps < 256:
+        return "192k"
+    else:
+        return "256k"
+
+
 def get_audio_info(filepath):
     """
     Extracts basic audio info from a file.
@@ -116,31 +132,40 @@ def get_audio_info(filepath):
 
 def decide_encoding_strategy(audio_info):
     """
-    Decides whether to encode as FLAC or AAC, and at what bitrate.
+    Determines whether an audio file should be copied, re-encoded, or skipped.
+
+    This strategy avoids re-encoding lossy formats and only converts truly lossless
+    sources to FLAC. Files with missing or suspicious metadata are skipped.
 
     Args:
-        audio_info (dict): Output of get_audio_info().
+        audio_info (dict): Dictionary from `get_audio_info()` containing keys:
+            - ext (str): File extension (e.g., ".mp3", ".flac")
+            - sample_rate (int): Sample rate in Hz
+            - duration (float or None): Duration in seconds
 
     Returns:
-        dict: Encoding strategy, e.g.:
-              {"format": "aac", "bitrate": "160k"}
-              or {"format": "flac"}
+        dict: Encoding strategy:
+            - {"format": "copy"} → Retain original file
+            - {"format": "flac"} → Re-encode to high-resolution FLAC
+            - {"format": "skip"} → Skip due to invalid or unsupported file
     """
-    ext = audio_info["ext"]
-    bitrate = audio_info["bitrate"]
+    ext = audio_info.get("ext")
+    sample_rate = audio_info.get("sample_rate")
+    duration = audio_info.get("duration")
 
-    if ext in [".mp3", ".m4a"] and bitrate:
-        if bitrate < 192:
-            return {"format": "aac", "bitrate": "160k"}
-        elif bitrate < 256:
-            return {"format": "aac", "bitrate": "192k"}
-        else:
-            return {"format": "aac", "bitrate": "256k"}
-    else:
+    if not ext or not sample_rate or not duration or duration < 5:
+        return {"format": "skip"}  # likely corrupt or non-audio
+
+    if ext in [".mp3", ".aac", ".m4a", ".ogg", ".wma"]:
+        return {"format": "aac"}
+
+    if ext in [".flac", ".alac", ".wav", ".aiff", ".aif"]:
         return {"format": "flac"}
 
+    return {"format": "skip"}  # unknown or unsupported format
 
-def is_lossless(file_path):
+
+def looks_lossless(file_path):
     """
     Determines whether the audio file is truly lossless.
     Detects by file extension and codec, but also flags FLACs
