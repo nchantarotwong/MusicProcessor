@@ -1,6 +1,6 @@
 # 🎧 MusicProcessor
 
-**MusicProcessor** is a powerful CLI tool for intelligently converting, normalizing, tagging, and analyzing your local music library. It upscales lossless sources to high-resolution FLAC, converts lossy sources to high-quality AAC (`.m4a`), preserves metadata and artwork, applies ReplayGain normalization, and generates detailed HTML and Markdown reports — while flagging low-quality or problematic files for easy re-sourcing.
+**MusicProcessor** is a powerful CLI tool for intelligently converting, normalizing, tagging, and analyzing your local music library. It upscales lossless sources to high-resolution FLAC, converts lossy sources to high-quality AAC (`.m4a`), preserves metadata and artwork, applies ReplayGain normalization, and generates detailed HTML and Markdown reports while flagging low-quality or problematic files for easy re-sourcing.
 
 ---
 
