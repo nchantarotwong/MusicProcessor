@@ -1,16 +1,17 @@
 # 🎧 MusicProcessor
 
-**MusicProcessor** is a powerful CLI tool for intelligently converting, normalizing, tagging, and analyzing your local music library. It upscales lossless sources to high-resolution FLAC, converts lossy sources to high-quality AAC (`.m4a`), preserves metadata and artwork, applies ReplayGain normalization, and generates detailed HTML and Markdown reports while flagging low-quality or problematic files for easy re-sourcing.
+**MusicProcessor** is a CLI tool for intelligently organizing, normalizing, tagging, and analyzing your local music library. It preserves existing lossy files without transcoding, copies existing FLAC files without upsampling, converts other lossless sources to FLAC, preserves metadata and artwork, applies ReplayGain normalization, and generates detailed HTML and Markdown reports while flagging low-quality or problematic files for easy re-sourcing.
 
 ---
 
 ## ✅ Features
 
-- 🔁 **Hybrid audio pipeline**:
-  - Converts **lossless** formats to **24-bit / 96kHz FLAC**
-  - Converts **lossy** formats (e.g., MP3) to **256 kbps AAC (.m4a)**
+- 🔁 **Preservation-first audio pipeline**:
+  - Copies existing **lossy** formats instead of transcoding them
+  - Copies existing **FLAC** files without upsampling
+  - Converts non-FLAC **lossless** formats to FLAC without changing sample rate or bit depth
 - 🖼️ **Preserve metadata and cover art** from original files
-- 📐 Apply **ReplayGain normalization** (tags for FLAC, baked-in for AAC)
+- 📐 Apply **ReplayGain tag normalization** without changing audio data
 - 🧠 Analyze audio quality and flag:
   - Tracks that are **too quiet**
   - Tracks with **potential clipping**
@@ -29,10 +30,10 @@
 
 - [Python 3.10+](https://www.python.org/)
 - [`ffmpeg`](https://ffmpeg.org/download.html) — audio transcoding
-- [`rsgain`](https://github.com/complexlogic/rsgain) — ReplayGain normalization for FLAC
+- [`rsgain`](https://github.com/complexlogic/rsgain) — ReplayGain tagging
 - Python packages:
   ```bash
-  pip install mutagen caffeine
+  pip install mutagen musicbrainzngs
   ```
 
 ### 🛠 Install `ffmpeg` and `rsgain` on macOS:
@@ -48,11 +49,32 @@ brew install ffmpeg rsgain
 python process_music.py /path/to/input /path/to/output
 ```
 
+By default, MusicProcessor uses track ReplayGain tags, which is the best fit
+for shuffle playback and making songs land at a similar perceived loudness.
+
+```bash
+python process_music.py /path/to/input /path/to/output --gain-profile track
+```
+
+For album playback, use album mode. This writes album gain tags in addition to
+track gain tags and assumes each album is contained in its own folder.
+
+```bash
+python process_music.py /path/to/input /path/to/output --gain-profile album
+```
+
+To skip loudness tagging entirely:
+
+```bash
+python process_music.py /path/to/input /path/to/output --gain-mode none
+```
+
 - Your original files remain untouched.
 - The output folder will contain:
-  - `.flac` files for lossless sources
-  - `.m4a` files for lossy sources
-  - Normalized ReplayGain tags (FLAC only)
+  - Original lossy files copied without generation loss
+  - Original FLAC files copied without upsampling
+  - `.flac` files for converted non-FLAC lossless sources
+  - ReplayGain tags, unless disabled with `--gain-mode none`
   - JSON + Markdown + HTML report
   - `_flagged_for_resourcing/` for problematic audio
   - `_failed_conversions/` for files that couldn’t be decoded
@@ -71,8 +93,8 @@ python process_music.py /path/to/input /path/to/output
 /output/
   Artist/
     Album/
-      track1.m4a       ← converted from MP3
-      track2.flac      ← converted and upsampled from FLAC
+      track1.mp3       ← copied from MP3
+      track2.flac      ← copied from FLAC
   _flagged_for_resourcing/
     Artist/
       Album/
@@ -91,8 +113,11 @@ python process_music.py /path/to/input /path/to/output
 ## 📌 Notes
 
 - ReplayGain is applied using [rsgain](https://github.com/complexlogic/rsgain) based on the EBU R128 loudness standard.
-- FLAC output uses 24-bit stored in a 32-bit container (`s32`).
-- AAC output is 256 kbps CBR for excellent quality at small file size.
+- ReplayGain tags require player support. They do not modify MP3, AAC, or FLAC audio data.
+- `--gain-profile track` is intended for shuffled libraries and similar loudness across songs.
+- `--gain-profile album` preserves album-relative loudness and depends on album-per-folder organization.
+- FLAC conversion preserves source sample rate and bit depth by default.
+- Lossy-to-lossy conversion is avoided by default because it reduces quality.
 - Metadata copying supports ID3, MP4, FLAC tags and embedded artwork (including cover art).
 
 ---

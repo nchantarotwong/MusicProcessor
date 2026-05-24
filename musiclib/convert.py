@@ -5,7 +5,7 @@ from mutagen import File
 from mutagen.flac import FLAC
 from mutagen.mp4 import MP4, MP4Cover
 
-from musiclib.constants import TARGET_AAC_SAMPLE_RATE, TARGET_FLAC_SAMPLE_RATE
+from musiclib.constants import TARGET_AAC_SAMPLE_RATE
 
 
 def ensure_dir(path):
@@ -71,12 +71,13 @@ def convert_to_aac(
         *(["-af", ",".join(filters)] if filters else []),
         "-ar", str(TARGET_AAC_SAMPLE_RATE),
         "-c:a", "aac", "-b:a", bitrate,
-        output_path
     ]
 
     if metadata_extra:
         for key, value in metadata_extra.items():
             cmd.extend(["-metadata", f"{key}={value}"])
+
+    cmd.append(output_path)
 
     try:
         subprocess.run(cmd, check=True)
@@ -94,7 +95,7 @@ def convert_to_aac(
 
 def convert_to_flac(input_path, output_path, failed_dir=None):
     """
-    Converts an audio file to 24-bit / 96kHz FLAC format.
+    Converts a lossless audio file to FLAC without changing sample rate or bit depth.
 
     Args:
         input_path (str): Path to the input audio file.
@@ -106,8 +107,8 @@ def convert_to_flac(input_path, output_path, failed_dir=None):
     """
     cmd = [
         "ffmpeg", "-y", "-i", input_path,
-        "-ar", str(TARGET_FLAC_SAMPLE_RATE),
-        "-sample_fmt", "s32", "-c:a", "flac",
+        "-map", "0:a:0",
+        "-c:a", "flac",
         output_path
     ]
     try:
