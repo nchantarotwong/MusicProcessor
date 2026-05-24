@@ -11,7 +11,7 @@
   - Copies existing **FLAC** files without upsampling
   - Converts non-FLAC **lossless** formats to FLAC without changing sample rate or bit depth
 - 🖼️ **Preserve metadata and cover art** from original files
-- 📐 Apply **ReplayGain normalization** (tags for FLAC, baked-in for AAC)
+- 📐 Apply **ReplayGain tag normalization** without changing audio data
 - 🧠 Analyze audio quality and flag:
   - Tracks that are **too quiet**
   - Tracks with **potential clipping**
@@ -49,12 +49,32 @@ brew install ffmpeg rsgain
 python process_music.py /path/to/input /path/to/output
 ```
 
+By default, MusicProcessor uses track ReplayGain tags, which is the best fit
+for shuffle playback and making songs land at a similar perceived loudness.
+
+```bash
+python process_music.py /path/to/input /path/to/output --gain-profile track
+```
+
+For album playback, use album mode. This writes album gain tags in addition to
+track gain tags and assumes each album is contained in its own folder.
+
+```bash
+python process_music.py /path/to/input /path/to/output --gain-profile album
+```
+
+To skip loudness tagging entirely:
+
+```bash
+python process_music.py /path/to/input /path/to/output --gain-mode none
+```
+
 - Your original files remain untouched.
 - The output folder will contain:
   - Original lossy files copied without generation loss
   - Original FLAC files copied without upsampling
   - `.flac` files for converted non-FLAC lossless sources
-  - ReplayGain tags
+  - ReplayGain tags, unless disabled with `--gain-mode none`
   - JSON + Markdown + HTML report
   - `_flagged_for_resourcing/` for problematic audio
   - `_failed_conversions/` for files that couldn’t be decoded
@@ -93,6 +113,9 @@ python process_music.py /path/to/input /path/to/output
 ## 📌 Notes
 
 - ReplayGain is applied using [rsgain](https://github.com/complexlogic/rsgain) based on the EBU R128 loudness standard.
+- ReplayGain tags require player support. They do not modify MP3, AAC, or FLAC audio data.
+- `--gain-profile track` is intended for shuffled libraries and similar loudness across songs.
+- `--gain-profile album` preserves album-relative loudness and depends on album-per-folder organization.
 - FLAC conversion preserves source sample rate and bit depth by default.
 - Lossy-to-lossy conversion is avoided by default because it reduces quality.
 - Metadata copying supports ID3, MP4, FLAC tags and embedded artwork (including cover art).

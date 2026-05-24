@@ -154,7 +154,14 @@ def should_process(output_file, overwrite=False):
     return overwrite or not os.path.exists(output_file)
 
 
-def process_library(input_dir, output_dir, overwrite=False, max_workers=None):
+def process_library(
+    input_dir,
+    output_dir,
+    overwrite=False,
+    max_workers=None,
+    gain_mode="tags",
+    gain_profile="track",
+):
     """
     Processes a music library by converting, normalizing, tagging, analyzing, and reporting.
 
@@ -212,12 +219,17 @@ def process_library(input_dir, output_dir, overwrite=False, max_workers=None):
     else:
         print("[ℹ] No files to process.")
 
-    print("\nRunning ReplayGain normalization...")
-    try:
-        run_rsgain(output_dir)
-    except RuntimeError as e:
-        print(f"[✘] ReplayGain failed: {e}")
-        raise
+    if gain_mode == "tags":
+        print(f"\nRunning ReplayGain tag normalization ({gain_profile} profile)...")
+        try:
+            run_rsgain(output_dir, gain_profile=gain_profile)
+        except RuntimeError as e:
+            print(f"[✘] ReplayGain failed: {e}")
+            raise
+    elif gain_mode == "none":
+        print("\nSkipping ReplayGain normalization.")
+    else:
+        raise ValueError(f"Unknown gain mode: {gain_mode}")
 
     print("Analyzing and flagging...")
     for root, _, files in os.walk(output_dir):
@@ -249,8 +261,27 @@ if __name__ == "__main__":
     parser.add_argument("output", help="Path to output directory")
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files")
     parser.add_argument("--workers", type=int, default=None, help="Number of parallel workers to use")
+    parser.add_argument(
+        "--gain-mode",
+        choices=["tags", "none"],
+        default="tags",
+        help="How to normalize loudness. 'tags' writes ReplayGain metadata without changing audio.",
+    )
+    parser.add_argument(
+        "--gain-profile",
+        choices=["track", "album"],
+        default="track",
+        help="'track' targets similar song loudness for shuffle. 'album' also writes album gain tags.",
+    )
 
     args = parser.parse_args()
 
     with prevent_system_sleep():
-        process_library(args.input, args.output, overwrite=args.overwrite, max_workers=args.workers)
+        process_library(
+            args.input,
+            args.output,
+            overwrite=args.overwrite,
+            max_workers=args.workers,
+            gain_mode=args.gain_mode,
+            gain_profile=args.gain_profile,
+        )

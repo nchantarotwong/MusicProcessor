@@ -1,6 +1,12 @@
 import unittest
+from unittest.mock import patch
 
-from musiclib.analyze import choose_aac_bitrate, decide_encoding_strategy
+from musiclib.analyze import (
+    _get_tag_value,
+    choose_aac_bitrate,
+    decide_encoding_strategy,
+    run_rsgain,
+)
 
 
 class EncodingStrategyTests(unittest.TestCase):
@@ -64,6 +70,50 @@ class EncodingStrategyTests(unittest.TestCase):
         self.assertEqual(choose_aac_bitrate({"bitrate": 255}), "192k")
         self.assertEqual(choose_aac_bitrate({"bitrate": 256}), "256k")
         self.assertEqual(choose_aac_bitrate({"bitrate": 320}), "256k")
+
+
+class ReplayGainTests(unittest.TestCase):
+    def test_run_rsgain_track_profile_disables_album_tags(self):
+        with patch("musiclib.analyze.subprocess.run") as run:
+            run_rsgain("/music/out", gain_profile="track", threads=2)
+
+        run.assert_called_once_with(
+            [
+                "rsgain",
+                "easy",
+                "--skip-existing",
+                "--multithread=2",
+                "-p",
+                "no_album",
+                "/music/out",
+            ],
+            check=True,
+        )
+
+    def test_run_rsgain_album_profile_keeps_album_tags(self):
+        with patch("musiclib.analyze.subprocess.run") as run:
+            run_rsgain("/music/out", gain_profile="album", threads=2)
+
+        run.assert_called_once_with(
+            [
+                "rsgain",
+                "easy",
+                "--skip-existing",
+                "--multithread=2",
+                "/music/out",
+            ],
+            check=True,
+        )
+
+    def test_get_tag_value_reads_plain_replaygain_tags_case_insensitively(self):
+        tags = {"REPLAYGAIN_TRACK_GAIN": ["-7.25 dB"]}
+
+        self.assertEqual(_get_tag_value(tags, "replaygain_track_gain"), "-7.25 dB")
+
+    def test_get_tag_value_reads_mp4_freeform_replaygain_tags(self):
+        tags = {"----:com.apple.iTunes:replaygain_track_gain": [b"-7.25 dB"]}
+
+        self.assertEqual(_get_tag_value(tags, "replaygain_track_gain"), "-7.25 dB")
 
 
 if __name__ == "__main__":

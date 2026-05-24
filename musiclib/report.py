@@ -30,13 +30,13 @@ def generate_reports(json_path, output_dir):
         "tr.flagged { background-color: #ffe6e6; }",
         "</style></head><body>",
         "<h1>Audio Processing Report</h1>",
-        "<table><tr><th>File</th><th>Track Gain</th><th>Track Peak</th><th>Too Quiet</th><th>Clipping</th><th>Resourcing Recommended</th></tr>"
+        "<table><tr><th>File</th><th>Track Gain</th><th>Album Gain</th><th>Track Peak</th><th>Album Peak</th><th>Too Quiet</th><th>Clipping</th><th>Resourcing Recommended</th></tr>"
     ]
 
     md_lines = [
         "# Audio Processing Report\n",
-        "| File | Track Gain | Track Peak | Too Quiet | Clipping | Resourcing Recommended |",
-        "|------|------------|------------|-----------|----------|-------------------------|"
+        "| File | Track Gain | Album Gain | Track Peak | Album Peak | Too Quiet | Clipping | Resourcing Recommended |",
+        "|------|------------|------------|------------|------------|-----------|----------|-------------------------|"
     ]
 
     for item in data:
@@ -44,13 +44,16 @@ def generate_reports(json_path, output_dir):
         html_lines.append(
             f"<tr{row_class}><td>{item['path']}</td>"
             f"<td>{item.get('track_gain')}</td>"
+            f"<td>{item.get('album_gain')}</td>"
             f"<td>{item.get('track_peak')}</td>"
+            f"<td>{item.get('album_peak')}</td>"
             f"<td>{item.get('too_quiet')}</td>"
             f"<td>{item.get('potential_clipping')}</td>"
             f"<td>{item.get('resourcing_recommended')}</td></tr>"
         )
         md_lines.append(
-            f"| {item['path']} | {item.get('track_gain')} | {item.get('track_peak')} | "
+            f"| {item['path']} | {item.get('track_gain')} | {item.get('album_gain')} | "
+            f"{item.get('track_peak')} | {item.get('album_peak')} | "
             f"{item.get('too_quiet')} | {item.get('potential_clipping')} | {item.get('resourcing_recommended')} |"
         )
 
