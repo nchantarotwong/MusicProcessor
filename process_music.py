@@ -22,6 +22,7 @@ from musiclib.analyze import (
     run_rsgain
 )
 from musiclib.artwork import extract_embedded_artwork
+from musiclib.metadata_audit import audit_metadata, write_metadata_audit_reports
 from musiclib.report import generate_reports
 
 FAILED_CONVERSION_DIR = "_failed_conversions"
@@ -259,6 +260,11 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="MusicProcessor: Normalize and convert a music library.")
     parser.add_argument("input", help="Path to input directory")
     parser.add_argument("output", help="Path to output directory")
+    parser.add_argument(
+        "--metadata-audit-only",
+        action="store_true",
+        help="Only scan metadata and write metadata_audit reports; do not process audio.",
+    )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files")
     parser.add_argument("--workers", type=int, default=None, help="Number of parallel workers to use")
     parser.add_argument(
@@ -275,6 +281,11 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+
+    if args.metadata_audit_only:
+        reports = write_metadata_audit_reports(audit_metadata(args.input), args.output)
+        print(f"Metadata audit saved to:\n- {reports['json']}\n- {reports['markdown']}")
+        raise SystemExit(0)
 
     with prevent_system_sleep():
         process_library(
