@@ -1,12 +1,12 @@
 import argparse
+from contextlib import contextmanager
 import os
 import shutil
+import subprocess
 import tempfile
 import json
 
 from concurrent.futures import ProcessPoolExecutor, as_completed
-
-import caffeine
 
 from musiclib.convert import (
     ensure_dir,
@@ -19,22 +19,43 @@ from musiclib.analyze import (
     choose_aac_bitrate,
     decide_encoding_strategy,
     get_audio_info,
-    looks_lossless,
     run_rsgain
 )
-from musiclib.artwork import extract_embedded_artwork, strip_embedded_artwork
+from musiclib.artwork import extract_embedded_artwork
 from musiclib.report import generate_reports
 
 FAILED_CONVERSION_DIR = "_failed_conversions"
 RESOURCING_FOLDER_NAME = "_flagged_for_resourcing"
 
 
-def process_one_file(input_path, output_path, failed_dir):
-    try:
-        strip_embedded_artwork(input_path)
+@contextmanager
+def prevent_system_sleep():
+    caffeinate_path = shutil.which("caffeinate")
+    if not caffeinate_path:
+        print("* caffeinate not found; system sleep prevention disabled.")
+        yield
+        return
 
-        audio_info = get_audio_info(input_path)
-        strategy = decide_encoding_strategy(audio_info)
+    print("* Preventing system sleep...")
+    process = subprocess.Popen(
+        [caffeinate_path, "-d", "-i", "-m"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        yield
+    finally:
+        print("* Re-enabling system sleep.")
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
+
+
+def process_one_file(input_path, output_path, strategy, audio_info, failed_dir):
+    try:
         bitrate = choose_aac_bitrate(audio_info)
 
         use_format = strategy["format"]
@@ -43,11 +64,11 @@ def process_one_file(input_path, output_path, failed_dir):
             return f"[⚠️] Skipping: {input_path} (invalid or unsupported)"
 
         elif use_format == "copy":
-            print(f"[→] Copying: {input_path} → {output_path}")
+            print(f"[→] Copying: {input_path} → {output_path} ({strategy.get('reason')})")
             shutil.copy2(input_path, output_path)
 
         elif use_format == "flac":
-            print(f"[🎧] Converting to FLAC: {input_path} → {output_path}")
+            print(f"[🎧] Converting to FLAC: {input_path} → {output_path} ({strategy.get('reason')})")
             convert_to_flac(input_path, output_path, failed_dir=failed_dir)
 
         elif use_format == "aac":
@@ -84,7 +105,7 @@ def process_one_file(input_path, output_path, failed_dir):
             )
 
         else:
-            raise RuntimeError(f"Unknown encoding strategy: {format}")
+            raise RuntimeError(f"Unknown encoding strategy: {use_format}")
 
         # 🖼️ Extract artwork intelligently after conversion
         cover_path = os.path.join(os.path.dirname(output_path), "cover.jpg")
@@ -106,7 +127,8 @@ def process_one_file(input_path, output_path, failed_dir):
             if os.path.exists(temp_cover_path):
                 os.remove(temp_cover_path)
 
-        copy_metadata_and_artwork(input_path, output_path)
+        if use_format != "copy":
+            copy_metadata_and_artwork(input_path, output_path)
 
         return output_path
     except Exception as e:
@@ -116,8 +138,8 @@ def process_one_file(input_path, output_path, failed_dir):
 def process_all_files(file_pairs, failed_dir, max_workers=None):
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = [
-            executor.submit(process_one_file, in_path, out_path, failed_dir)
-            for in_path, out_path in file_pairs
+            executor.submit(process_one_file, in_path, out_path, strategy, audio_info, failed_dir)
+            for in_path, out_path, strategy, audio_info in file_pairs
         ]
 
         for future in as_completed(futures):
@@ -160,13 +182,19 @@ def process_library(input_dir, output_dir, overwrite=False, max_workers=None):
     for root, _, files in os.walk(input_dir):
         for file in files:
             ext = os.path.splitext(file)[1].lower()
-            if ext not in ['.mp3', '.flac', '.m4a', '.alac', '.mp4']:
+            if ext not in ['.mp3', '.flac', '.m4a', '.alac', '.mp4', '.aac', '.ogg', '.wma', '.wav', '.aiff', '.aif']:
                 continue
 
             input_file = os.path.join(root, file)
+            audio_info = get_audio_info(input_file)
+            strategy = decide_encoding_strategy(audio_info)
+            if strategy["format"] == "skip":
+                print(f"[⚠️] Skipping: {input_file} (invalid or unsupported)")
+                continue
+
             rel_path = os.path.relpath(input_file, input_dir)
             output_base = os.path.splitext(os.path.join(output_dir, rel_path))[0]
-            output_file = output_base + ".flac" if looks_lossless(input_file) else output_base + ".m4a"
+            output_file = output_base + strategy["extension"]
 
             output_folder = os.path.dirname(output_file)
             ensure_dir(output_folder)
@@ -175,7 +203,7 @@ def process_library(input_dir, output_dir, overwrite=False, max_workers=None):
                 print(f"[✔] Skipping {output_file} (already exists)")
                 continue
 
-            file_jobs.append((input_file, output_file))
+            file_jobs.append((input_file, output_file, strategy, audio_info))
 
     if file_jobs:
         process_all_files(file_jobs, failed_dir, max_workers=max_workers)
@@ -194,7 +222,7 @@ def process_library(input_dir, output_dir, overwrite=False, max_workers=None):
     print("Analyzing and flagging...")
     for root, _, files in os.walk(output_dir):
         for file in files:
-            if file.endswith(".flac"):
+            if file.lower().endswith((".flac", ".m4a", ".mp4", ".mp3", ".aac", ".ogg", ".wma")):
                 full_path = os.path.join(root, file)
                 analysis = analyze_gain(full_path)
                 log_data.append(analysis)
@@ -224,10 +252,5 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    try:
-        print("* Preventing system sleep...")
-        caffeine.on(display=True)
+    with prevent_system_sleep():
         process_library(args.input, args.output, overwrite=args.overwrite, max_workers=args.workers)
-    finally:
-        print("* Re-enabling system sleep.")
-        caffeine.off()
