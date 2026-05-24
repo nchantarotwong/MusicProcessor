@@ -69,6 +69,17 @@ To skip loudness tagging entirely:
 python process_music.py /path/to/input /path/to/output --gain-mode none
 ```
 
+To run a read-only metadata audit without converting or copying audio:
+
+```bash
+python process_music.py /path/to/input /path/to/output --metadata-audit-only
+```
+
+This writes:
+
+- `metadata_audit.json`
+- `metadata_audit.md`
+
 - Your original files remain untouched.
 - The output folder will contain:
   - Original lossy files copied without generation loss
@@ -116,6 +127,8 @@ python process_music.py /path/to/input /path/to/output --gain-mode none
 - ReplayGain tags require player support. They do not modify MP3, AAC, or FLAC audio data.
 - `--gain-profile track` is intended for shuffled libraries and similar loudness across songs.
 - `--gain-profile album` preserves album-relative loudness and depends on album-per-folder organization.
+- `--metadata-audit-only` is read-only. It reports metadata problems but does not rename files or modify tags.
+- Personal canonical artist spellings can be added to `CANONICAL_ARTIST_OVERRIDES` in `musiclib/metadata_audit.py`, for example `Queens of the Stone Age`.
 - FLAC conversion preserves source sample rate and bit depth by default.
 - Lossy-to-lossy conversion is avoided by default because it reduces quality.
 - Metadata copying supports ID3, MP4, FLAC tags and embedded artwork (including cover art).
