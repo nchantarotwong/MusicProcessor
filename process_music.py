@@ -302,6 +302,16 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
+    selected_special_modes = [
+        args.metadata_audit_only,
+        args.filename_plan_only,
+        bool(args.apply_filename_plan),
+    ]
+    if sum(selected_special_modes) > 1:
+        parser.error(
+            "Choose only one of --metadata-audit-only, --filename-plan-only, "
+            "or --apply-filename-plan."
+        )
 
     if args.metadata_audit_only:
         reports = write_metadata_audit_reports(audit_metadata(args.input), args.output)
