@@ -464,8 +464,26 @@ def apply_filename_normalization_plan(plan_path, allow_partial=False):
             })
         return _filename_apply_result(root_dir, results)
 
-    rename_actions = [action for action in actions if action.get("status") == "rename"]
-    target_counts = Counter(action.get("proposed_path") for action in rename_actions)
+    preflight_results = _preflight_filename_renames(root_dir, actions)
+    runtime_blockers = [
+        result
+        for result in preflight_results.values()
+        if result["status"] == "blocked"
+    ]
+
+    if runtime_blockers and not allow_partial:
+        for action in actions:
+            result = preflight_results.get(id(action))
+            if result and result["status"] == "blocked":
+                results.append(result)
+            else:
+                results.append({
+                    "status": "skipped",
+                    "reason": "plan contains runtime blockers",
+                    "path": action.get("path"),
+                    "proposed_path": action.get("proposed_path"),
+                })
+        return _filename_apply_result(root_dir, results)
 
     for action in actions:
         if action.get("status") != "rename":
@@ -477,45 +495,15 @@ def apply_filename_normalization_plan(plan_path, allow_partial=False):
             })
             continue
 
+        preflight = preflight_results[id(action)]
+        if preflight["status"] == "blocked":
+            results.append(preflight)
+            continue
+
         path = action.get("path")
         proposed_path = action.get("proposed_path")
-        if target_counts[proposed_path] > 1:
-            results.append({
-                "status": "blocked",
-                "reason": "target filename collision",
-                "path": path,
-                "proposed_path": proposed_path,
-            })
-            continue
-
-        source = _resolve_plan_path(root_dir, path)
-        target = _resolve_plan_path(root_dir, proposed_path)
-        if os.path.dirname(source) != os.path.dirname(target):
-            results.append({
-                "status": "blocked",
-                "reason": "folder moves are not supported",
-                "path": path,
-                "proposed_path": proposed_path,
-            })
-            continue
-
-        if not os.path.exists(source):
-            results.append({
-                "status": "blocked",
-                "reason": "source file does not exist",
-                "path": path,
-                "proposed_path": proposed_path,
-            })
-            continue
-
-        if os.path.exists(target) and not _is_same_file(source, target):
-            results.append({
-                "status": "blocked",
-                "reason": "target file already exists",
-                "path": path,
-                "proposed_path": proposed_path,
-            })
-            continue
+        source = preflight["source"]
+        target = preflight["target"]
 
         _rename_file(source, target)
         results.append({
@@ -526,6 +514,59 @@ def apply_filename_normalization_plan(plan_path, allow_partial=False):
         })
 
     return _filename_apply_result(root_dir, results)
+
+
+def _preflight_filename_renames(root_dir, actions):
+    rename_actions = [action for action in actions if action.get("status") == "rename"]
+    target_counts = Counter(action.get("proposed_path") for action in rename_actions)
+    results = {}
+
+    for action in rename_actions:
+        path = action.get("path")
+        proposed_path = action.get("proposed_path")
+
+        if target_counts[proposed_path] > 1:
+            results[id(action)] = _apply_blocker(action, "target filename collision")
+            continue
+
+        try:
+            source = _resolve_plan_path(root_dir, path)
+            target = _resolve_plan_path(root_dir, proposed_path)
+        except ValueError as e:
+            results[id(action)] = _apply_blocker(action, str(e))
+            continue
+
+        if os.path.dirname(source) != os.path.dirname(target):
+            results[id(action)] = _apply_blocker(action, "folder moves are not supported")
+            continue
+
+        if not os.path.exists(source):
+            results[id(action)] = _apply_blocker(action, "source file does not exist")
+            continue
+
+        if os.path.exists(target) and not _is_same_file(source, target):
+            results[id(action)] = _apply_blocker(action, "target file already exists")
+            continue
+
+        results[id(action)] = {
+            "status": "ready",
+            "reason": None,
+            "path": path,
+            "proposed_path": proposed_path,
+            "source": source,
+            "target": target,
+        }
+
+    return results
+
+
+def _apply_blocker(action, reason):
+    return {
+        "status": "blocked",
+        "reason": reason,
+        "path": action.get("path"),
+        "proposed_path": action.get("proposed_path"),
+    }
 
 
 def write_filename_apply_results(result, output_dir):
