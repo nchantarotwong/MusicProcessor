@@ -263,81 +263,7 @@ def process_library(
     print(f"Files that failed to convert copied to: {failed_dir}")
 
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="MusicProcessor: Normalize and convert a music library.")
-    parser.add_argument("input", help="Path to input directory")
-    parser.add_argument("output", help="Path to output directory")
-    parser.add_argument(
-        "--metadata-audit-only",
-        action="store_true",
-        help="Only scan metadata and write metadata_audit reports; do not process audio.",
-    )
-    parser.add_argument(
-        "--filename-plan-only",
-        action="store_true",
-        help="Only write a dry-run filename normalization plan; do not rename or process audio.",
-    )
-    parser.add_argument(
-        "--apply-filename-plan",
-        help="Apply rename actions from a filename_normalization_plan.json file.",
-    )
-    parser.add_argument(
-        "--allow-partial-renames",
-        action="store_true",
-        help="Apply valid filename-plan renames even if the plan contains blocked actions.",
-    )
-    parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files")
-    parser.add_argument("--workers", type=int, default=None, help="Number of parallel workers to use")
-    parser.add_argument(
-        "--gain-mode",
-        choices=["tags", "none"],
-        default="tags",
-        help="How to normalize loudness. 'tags' writes ReplayGain metadata without changing audio.",
-    )
-    parser.add_argument(
-        "--gain-profile",
-        choices=["track", "album"],
-        default="track",
-        help="'track' targets similar song loudness for shuffle. 'album' also writes album gain tags.",
-    )
-
-    args = parser.parse_args()
-    selected_special_modes = [
-        args.metadata_audit_only,
-        args.filename_plan_only,
-        bool(args.apply_filename_plan),
-    ]
-    if sum(selected_special_modes) > 1:
-        parser.error(
-            "Choose only one of --metadata-audit-only, --filename-plan-only, "
-            "or --apply-filename-plan."
-        )
-
-    if args.metadata_audit_only:
-        reports = write_metadata_audit_reports(audit_metadata(args.input), args.output)
-        print(f"Metadata audit saved to:\n- {reports['json']}\n- {reports['markdown']}")
-        raise SystemExit(0)
-
-    if args.filename_plan_only:
-        plan = build_filename_normalization_plan(audit_metadata(args.input))
-        reports = write_filename_plan_reports(plan, args.output)
-        print(f"Filename normalization plan saved to:\n- {reports['json']}\n- {reports['markdown']}")
-        raise SystemExit(0)
-
-    if args.apply_filename_plan:
-        result = apply_filename_normalization_plan(
-            args.apply_filename_plan,
-            allow_partial=args.allow_partial_renames,
-        )
-        result_path = write_filename_apply_results(result, args.output)
-        print(f"Filename normalization results saved to:\n- {result_path}")
-        print(
-            f"Renamed: {result['renamed_count']}; "
-            f"Blocked: {result['blocked_count']}; "
-            f"Skipped: {result['skipped_count']}"
-        )
-        raise SystemExit(0)
-
+def run_process_command(args):
     with prevent_system_sleep():
         process_library(
             args.input,
@@ -347,3 +273,84 @@ if __name__ == "__main__":
             gain_mode=args.gain_mode,
             gain_profile=args.gain_profile,
         )
+
+
+def run_metadata_audit_command(args):
+    reports = write_metadata_audit_reports(audit_metadata(args.input), args.output)
+    print(f"Metadata audit saved to:\n- {reports['json']}\n- {reports['markdown']}")
+
+
+def run_filename_plan_command(args):
+    plan = build_filename_normalization_plan(audit_metadata(args.input))
+    reports = write_filename_plan_reports(plan, args.output)
+    print(f"Filename normalization plan saved to:\n- {reports['json']}\n- {reports['markdown']}")
+
+
+def run_apply_filename_plan_command(args):
+    result = apply_filename_normalization_plan(
+        args.plan,
+        allow_partial=args.allow_partial_renames,
+    )
+    result_path = write_filename_apply_results(result, args.output)
+    print(f"Filename normalization results saved to:\n- {result_path}")
+    print(
+        f"Renamed: {result['renamed_count']}; "
+        f"Blocked: {result['blocked_count']}; "
+        f"Skipped: {result['skipped_count']}"
+    )
+
+
+def build_parser():
+    parser = argparse.ArgumentParser(description="MusicProcessor: process and maintain a music library.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    process_parser = subparsers.add_parser("process", help="Process, normalize, analyze, and report a music library.")
+    process_parser.add_argument("input", help="Path to input directory")
+    process_parser.add_argument("output", help="Path to output directory")
+    process_parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files")
+    process_parser.add_argument("--workers", type=int, default=None, help="Number of parallel workers to use")
+    process_parser.add_argument(
+        "--gain-mode",
+        choices=["tags", "none"],
+        default="tags",
+        help="How to normalize loudness. 'tags' writes ReplayGain metadata without changing audio.",
+    )
+    process_parser.add_argument(
+        "--gain-profile",
+        choices=["track", "album"],
+        default="track",
+        help="'track' targets similar song loudness for shuffle. 'album' also writes album gain tags.",
+    )
+    process_parser.set_defaults(handler=run_process_command)
+
+    metadata_parser = subparsers.add_parser("metadata-audit", help="Write read-only metadata audit reports.")
+    metadata_parser.add_argument("input", help="Path to input directory")
+    metadata_parser.add_argument("output", help="Path to output directory")
+    metadata_parser.set_defaults(handler=run_metadata_audit_command)
+
+    filename_plan_parser = subparsers.add_parser("filename-plan", help="Write a read-only filename normalization plan.")
+    filename_plan_parser.add_argument("input", help="Path to input directory")
+    filename_plan_parser.add_argument("output", help="Path to output directory")
+    filename_plan_parser.set_defaults(handler=run_filename_plan_command)
+
+    apply_parser = subparsers.add_parser("apply-filename-plan", help="Apply rename actions from a filename plan.")
+    apply_parser.add_argument("plan", help="Path to filename_normalization_plan.json")
+    apply_parser.add_argument("output", help="Path to write filename_normalization_results.json")
+    apply_parser.add_argument(
+        "--allow-partial-renames",
+        action="store_true",
+        help="Apply valid filename-plan renames even if the plan contains blocked actions.",
+    )
+    apply_parser.set_defaults(handler=run_apply_filename_plan_command)
+
+    return parser
+
+
+def main():
+    parser = build_parser()
+    args = parser.parse_args()
+    args.handler(args)
+
+
+if __name__ == "__main__":
+    main()

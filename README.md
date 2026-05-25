@@ -46,33 +46,33 @@ brew install ffmpeg rsgain
 ## 🚀 Usage
 
 ```bash
-python process_music.py /path/to/input /path/to/output
+python process_music.py process /path/to/input /path/to/output
 ```
 
 By default, MusicProcessor uses track ReplayGain tags, which is the best fit
 for shuffle playback and making songs land at a similar perceived loudness.
 
 ```bash
-python process_music.py /path/to/input /path/to/output --gain-profile track
+python process_music.py process /path/to/input /path/to/output --gain-profile track
 ```
 
 For album playback, use album mode. This writes album gain tags in addition to
 track gain tags and assumes each album is contained in its own folder.
 
 ```bash
-python process_music.py /path/to/input /path/to/output --gain-profile album
+python process_music.py process /path/to/input /path/to/output --gain-profile album
 ```
 
 To skip loudness tagging entirely:
 
 ```bash
-python process_music.py /path/to/input /path/to/output --gain-mode none
+python process_music.py process /path/to/input /path/to/output --gain-mode none
 ```
 
 To run a read-only metadata audit without converting or copying audio:
 
 ```bash
-python process_music.py /path/to/input /path/to/output --metadata-audit-only
+python process_music.py metadata-audit /path/to/input /path/to/output
 ```
 
 This writes:
@@ -83,7 +83,7 @@ This writes:
 To write a read-only filename normalization plan:
 
 ```bash
-python process_music.py /path/to/input /path/to/output --filename-plan-only
+python process_music.py filename-plan /path/to/input /path/to/output
 ```
 
 This proposes filename-only changes like `01 - Track Title.mp3`, reports
@@ -93,14 +93,14 @@ collisions, and does not rename files.
 After reviewing the plan, apply valid rename actions:
 
 ```bash
-python process_music.py /path/to/input /path/to/output --apply-filename-plan /path/to/output/filename_normalization_plan.json
+python process_music.py apply-filename-plan /path/to/output/filename_normalization_plan.json /path/to/output
 ```
 
 By default, applying refuses to rename anything if the plan contains blocked
 actions. To apply valid rename actions while leaving blocked ones untouched:
 
 ```bash
-python process_music.py /path/to/input /path/to/output --apply-filename-plan /path/to/output/filename_normalization_plan.json --allow-partial-renames
+python process_music.py apply-filename-plan /path/to/output/filename_normalization_plan.json /path/to/output --allow-partial-renames
 ```
 
 This writes `filename_normalization_results.json`.
@@ -152,9 +152,9 @@ This writes `filename_normalization_results.json`.
 - ReplayGain tags require player support. They do not modify MP3, AAC, or FLAC audio data.
 - `--gain-profile track` is intended for shuffled libraries and similar loudness across songs.
 - `--gain-profile album` preserves album-relative loudness and depends on album-per-folder organization.
-- `--metadata-audit-only` is read-only. It reports metadata problems but does not rename files or modify tags.
-- `--filename-plan-only` is read-only. It proposes filename changes but does not apply them.
-- `--apply-filename-plan` only renames files within their current folders. It does not move folders or modify tags.
+- `metadata-audit` is read-only. It reports metadata problems but does not rename files or modify tags.
+- `filename-plan` is read-only. It proposes filename changes but does not apply them.
+- `apply-filename-plan` only renames files within their current folders. It does not move folders or modify tags.
 - Personal canonical artist spellings can be added to `CANONICAL_ARTIST_OVERRIDES` in `musiclib/metadata_audit.py`, for example `Queens of the Stone Age`.
 - FLAC conversion preserves source sample rate and bit depth by default.
 - Lossy-to-lossy conversion is avoided by default because it reduces quality.
