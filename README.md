@@ -90,6 +90,21 @@ This proposes filename-only changes like `01 - Track Title.mp3`, reports
 blocked actions such as missing title/track metadata or target filename
 collisions, and does not rename files.
 
+After reviewing the plan, apply valid rename actions:
+
+```bash
+python process_music.py /path/to/input /path/to/output --apply-filename-plan /path/to/output/filename_normalization_plan.json
+```
+
+By default, applying refuses to rename anything if the plan contains blocked
+actions. To apply valid rename actions while leaving blocked ones untouched:
+
+```bash
+python process_music.py /path/to/input /path/to/output --apply-filename-plan /path/to/output/filename_normalization_plan.json --allow-partial-renames
+```
+
+This writes `filename_normalization_results.json`.
+
 - Your original files remain untouched.
 - The output folder will contain:
   - Original lossy files copied without generation loss
@@ -139,6 +154,7 @@ collisions, and does not rename files.
 - `--gain-profile album` preserves album-relative loudness and depends on album-per-folder organization.
 - `--metadata-audit-only` is read-only. It reports metadata problems but does not rename files or modify tags.
 - `--filename-plan-only` is read-only. It proposes filename changes but does not apply them.
+- `--apply-filename-plan` only renames files within their current folders. It does not move folders or modify tags.
 - Personal canonical artist spellings can be added to `CANONICAL_ARTIST_OVERRIDES` in `musiclib/metadata_audit.py`, for example `Queens of the Stone Age`.
 - FLAC conversion preserves source sample rate and bit depth by default.
 - Lossy-to-lossy conversion is avoided by default because it reduces quality.

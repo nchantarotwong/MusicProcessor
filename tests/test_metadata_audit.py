@@ -1,11 +1,14 @@
 import os
+import json
 import tempfile
 import unittest
 from unittest.mock import patch
 
 from musiclib.metadata_audit import (
     audit_metadata,
+    apply_filename_normalization_plan,
     build_filename_normalization_plan,
+    write_filename_apply_results,
     write_filename_plan_reports,
     write_metadata_audit_reports,
 )
@@ -30,6 +33,20 @@ def track(path, **overrides):
     }
     data.update(overrides)
     return data
+
+
+def write_plan(root_dir, actions):
+    plan = {
+        "root_dir": root_dir,
+        "track_count": len(actions),
+        "rename_count": sum(1 for action in actions if action["status"] == "rename"),
+        "blocked_count": sum(1 for action in actions if action["status"] == "blocked"),
+        "actions": actions,
+    }
+    plan_path = os.path.join(root_dir, "filename_normalization_plan.json")
+    with open(plan_path, "w", encoding="utf-8") as f:
+        json.dump(plan, f)
+    return plan_path
 
 
 class MetadataAuditTests(unittest.TestCase):
@@ -210,6 +227,149 @@ class MetadataAuditTests(unittest.TestCase):
 
             self.assertTrue(os.path.exists(reports["json"]))
             self.assertTrue(os.path.exists(reports["markdown"]))
+
+    def test_apply_filename_plan_renames_files(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            album_dir = os.path.join(tmpdir, "Artist", "Album")
+            os.makedirs(album_dir)
+            source = os.path.join(album_dir, "song.mp3")
+            target = os.path.join(album_dir, "01 - Song.mp3")
+            open(source, "w", encoding="utf-8").close()
+            plan_path = write_plan(tmpdir, [
+                {
+                    "status": "rename",
+                    "path": "Artist/Album/song.mp3",
+                    "proposed_path": "Artist/Album/01 - Song.mp3",
+                }
+            ])
+
+            result = apply_filename_normalization_plan(plan_path)
+
+            self.assertEqual(result["renamed_count"], 1)
+            self.assertFalse(os.path.exists(source))
+            self.assertTrue(os.path.exists(target))
+
+    def test_apply_filename_plan_refuses_blocked_plan_by_default(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            album_dir = os.path.join(tmpdir, "Artist", "Album")
+            os.makedirs(album_dir)
+            source = os.path.join(album_dir, "song.mp3")
+            open(source, "w", encoding="utf-8").close()
+            plan_path = write_plan(tmpdir, [
+                {
+                    "status": "rename",
+                    "path": "Artist/Album/song.mp3",
+                    "proposed_path": "Artist/Album/01 - Song.mp3",
+                },
+                {
+                    "status": "blocked",
+                    "path": "Artist/Album/other.mp3",
+                    "proposed_path": None,
+                },
+            ])
+
+            result = apply_filename_normalization_plan(plan_path)
+
+            self.assertEqual(result["renamed_count"], 0)
+            self.assertEqual(result["skipped_count"], 2)
+            self.assertTrue(os.path.exists(source))
+
+    def test_apply_filename_plan_allows_partial_renames(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            album_dir = os.path.join(tmpdir, "Artist", "Album")
+            os.makedirs(album_dir)
+            source = os.path.join(album_dir, "song.mp3")
+            target = os.path.join(album_dir, "01 - Song.mp3")
+            open(source, "w", encoding="utf-8").close()
+            plan_path = write_plan(tmpdir, [
+                {
+                    "status": "rename",
+                    "path": "Artist/Album/song.mp3",
+                    "proposed_path": "Artist/Album/01 - Song.mp3",
+                },
+                {
+                    "status": "blocked",
+                    "path": "Artist/Album/other.mp3",
+                    "proposed_path": None,
+                },
+            ])
+
+            result = apply_filename_normalization_plan(plan_path, allow_partial=True)
+
+            self.assertEqual(result["renamed_count"], 1)
+            self.assertEqual(result["skipped_count"], 1)
+            self.assertFalse(os.path.exists(source))
+            self.assertTrue(os.path.exists(target))
+
+    def test_apply_filename_plan_blocks_existing_target(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            album_dir = os.path.join(tmpdir, "Artist", "Album")
+            os.makedirs(album_dir)
+            source = os.path.join(album_dir, "song.mp3")
+            target = os.path.join(album_dir, "01 - Song.mp3")
+            open(source, "w", encoding="utf-8").close()
+            open(target, "w", encoding="utf-8").close()
+            plan_path = write_plan(tmpdir, [
+                {
+                    "status": "rename",
+                    "path": "Artist/Album/song.mp3",
+                    "proposed_path": "Artist/Album/01 - Song.mp3",
+                }
+            ])
+
+            result = apply_filename_normalization_plan(plan_path)
+
+            self.assertEqual(result["blocked_count"], 1)
+            self.assertEqual(result["results"][0]["reason"], "target file already exists")
+            self.assertTrue(os.path.exists(source))
+
+    def test_apply_filename_plan_allows_case_only_renames(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            album_dir = os.path.join(tmpdir, "Artist", "Album")
+            os.makedirs(album_dir)
+            source = os.path.join(album_dir, "song.mp3")
+            open(source, "w", encoding="utf-8").close()
+            plan_path = write_plan(tmpdir, [
+                {
+                    "status": "rename",
+                    "path": "Artist/Album/song.mp3",
+                    "proposed_path": "Artist/Album/Song.mp3",
+                }
+            ])
+
+            with patch("musiclib.metadata_audit._is_same_file", return_value=True), \
+                    patch("musiclib.metadata_audit._rename_file") as rename_file:
+                result = apply_filename_normalization_plan(plan_path)
+
+            self.assertEqual(result["renamed_count"], 1)
+            rename_file.assert_called_once()
+
+    def test_apply_filename_plan_rejects_paths_outside_root(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plan_path = write_plan(tmpdir, [
+                {
+                    "status": "rename",
+                    "path": "../song.mp3",
+                    "proposed_path": "01 - Song.mp3",
+                }
+            ])
+
+            with self.assertRaises(ValueError):
+                apply_filename_normalization_plan(plan_path)
+
+    def test_writes_filename_apply_results(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = {
+                "root_dir": "/music",
+                "renamed_count": 1,
+                "blocked_count": 0,
+                "skipped_count": 0,
+                "results": [],
+            }
+
+            result_path = write_filename_apply_results(result, tmpdir)
+
+            self.assertTrue(os.path.exists(result_path))
 
 
 if __name__ == "__main__":
