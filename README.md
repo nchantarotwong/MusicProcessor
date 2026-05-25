@@ -80,6 +80,16 @@ This writes:
 - `metadata_audit.json`
 - `metadata_audit.md`
 
+To write a read-only filename normalization plan:
+
+```bash
+python process_music.py /path/to/input /path/to/output --filename-plan-only
+```
+
+This proposes filename-only changes like `01 - Track Title.mp3`, reports
+blocked actions such as missing title/track metadata or target filename
+collisions, and does not rename files.
+
 - Your original files remain untouched.
 - The output folder will contain:
   - Original lossy files copied without generation loss
@@ -128,6 +138,7 @@ This writes:
 - `--gain-profile track` is intended for shuffled libraries and similar loudness across songs.
 - `--gain-profile album` preserves album-relative loudness and depends on album-per-folder organization.
 - `--metadata-audit-only` is read-only. It reports metadata problems but does not rename files or modify tags.
+- `--filename-plan-only` is read-only. It proposes filename changes but does not apply them.
 - Personal canonical artist spellings can be added to `CANONICAL_ARTIST_OVERRIDES` in `musiclib/metadata_audit.py`, for example `Queens of the Stone Age`.
 - FLAC conversion preserves source sample rate and bit depth by default.
 - Lossy-to-lossy conversion is avoided by default because it reduces quality.

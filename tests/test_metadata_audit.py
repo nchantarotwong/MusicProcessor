@@ -3,7 +3,12 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from musiclib.metadata_audit import audit_metadata, write_metadata_audit_reports
+from musiclib.metadata_audit import (
+    audit_metadata,
+    build_filename_normalization_plan,
+    write_filename_plan_reports,
+    write_metadata_audit_reports,
+)
 
 
 def track(path, **overrides):
@@ -119,6 +124,92 @@ class MetadataAuditTests(unittest.TestCase):
 
         self.assertIn("A \\| B.mp3", markdown)
         self.assertIn("Filename has \\| in it.", markdown)
+
+    def test_build_filename_plan_proposes_track_title_filename(self):
+        audit = {
+            "root_dir": "/music",
+            "track_count": 1,
+            "tracks": [
+                track(
+                    "Artist/Album/song.mp3",
+                    title="Go With the Flow",
+                    track_number=3,
+                )
+            ],
+            "issues": [],
+        }
+
+        plan = build_filename_normalization_plan(audit)
+
+        self.assertEqual(plan["rename_count"], 1)
+        self.assertEqual(
+            plan["actions"][0]["proposed_path"],
+            "Artist/Album/03 - Go With the Flow.mp3",
+        )
+
+    def test_build_filename_plan_sanitizes_invalid_filename_characters(self):
+        audit = {
+            "root_dir": "/music",
+            "track_count": 1,
+            "tracks": [
+                track(
+                    "Artist/Album/song.mp3",
+                    title='A/B: "C"?',
+                    track_number=1,
+                )
+            ],
+            "issues": [],
+        }
+
+        plan = build_filename_normalization_plan(audit)
+
+        self.assertEqual(
+            plan["actions"][0]["proposed_path"],
+            "Artist/Album/01 - A_B_ _C__.mp3",
+        )
+
+    def test_build_filename_plan_blocks_target_collisions(self):
+        audit = {
+            "root_dir": "/music",
+            "track_count": 2,
+            "tracks": [
+                track("Artist/Album/a.mp3", title="Song", track_number=1),
+                track("Artist/Album/b.mp3", title="Song", track_number=1),
+            ],
+            "issues": [],
+        }
+
+        plan = build_filename_normalization_plan(audit)
+
+        self.assertEqual(plan["blocked_count"], 2)
+        self.assertEqual(
+            {action["reason"] for action in plan["actions"]},
+            {"target filename collision"},
+        )
+
+    def test_writes_filename_plan_reports(self):
+        plan = {
+            "root_dir": "/music",
+            "track_count": 1,
+            "rename_count": 1,
+            "blocked_count": 0,
+            "actions": [
+                {
+                    "status": "rename",
+                    "reason": None,
+                    "path": "Artist/Album/song.mp3",
+                    "proposed_path": "Artist/Album/01 - Song.mp3",
+                    "current_filename": "song.mp3",
+                    "proposed_filename": "01 - Song.mp3",
+                }
+            ],
+        }
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            reports = write_filename_plan_reports(plan, tmpdir)
+
+            self.assertTrue(os.path.exists(reports["json"]))
+            self.assertTrue(os.path.exists(reports["markdown"]))
 
 
 if __name__ == "__main__":
