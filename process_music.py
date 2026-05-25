@@ -22,7 +22,12 @@ from musiclib.analyze import (
     run_rsgain
 )
 from musiclib.artwork import extract_embedded_artwork
-from musiclib.metadata_audit import audit_metadata, write_metadata_audit_reports
+from musiclib.metadata_audit import (
+    audit_metadata,
+    build_filename_normalization_plan,
+    write_filename_plan_reports,
+    write_metadata_audit_reports,
+)
 from musiclib.report import generate_reports
 
 FAILED_CONVERSION_DIR = "_failed_conversions"
@@ -265,6 +270,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Only scan metadata and write metadata_audit reports; do not process audio.",
     )
+    parser.add_argument(
+        "--filename-plan-only",
+        action="store_true",
+        help="Only write a dry-run filename normalization plan; do not rename or process audio.",
+    )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files")
     parser.add_argument("--workers", type=int, default=None, help="Number of parallel workers to use")
     parser.add_argument(
@@ -285,6 +295,12 @@ if __name__ == "__main__":
     if args.metadata_audit_only:
         reports = write_metadata_audit_reports(audit_metadata(args.input), args.output)
         print(f"Metadata audit saved to:\n- {reports['json']}\n- {reports['markdown']}")
+        raise SystemExit(0)
+
+    if args.filename_plan_only:
+        plan = build_filename_normalization_plan(audit_metadata(args.input))
+        reports = write_filename_plan_reports(plan, args.output)
+        print(f"Filename normalization plan saved to:\n- {reports['json']}\n- {reports['markdown']}")
         raise SystemExit(0)
 
     with prevent_system_sleep():
