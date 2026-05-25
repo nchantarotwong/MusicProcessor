@@ -32,6 +32,13 @@ class ProcessMusicCliTests(unittest.TestCase):
         self.assertEqual(args.input, "input")
         self.assertEqual(args.output, "output")
 
+    def test_quality_audit_subcommand_parses_paths(self):
+        args = build_parser().parse_args(["quality-audit", "input", "output"])
+
+        self.assertEqual(args.command, "quality-audit")
+        self.assertEqual(args.input, "input")
+        self.assertEqual(args.output, "output")
+
     def test_filename_plan_subcommand_parses_paths(self):
         args = build_parser().parse_args(["filename-plan", "input", "output"])
 

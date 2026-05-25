@@ -1,6 +1,26 @@
+import json
 import os
 import subprocess
 from mutagen import File
+
+
+LOW_BITRATE_LOSSY_KBPS = 192
+SUSPICIOUS_FLAC_BITRATE_KBPS = 700
+LOW_SAMPLE_RATE_HZ = 44100
+NON_RESOURCING_QUALITY_REASONS = {"missing_replaygain", "very_short_track"}
+QUALITY_AUDIO_EXTENSIONS = {
+    ".aac",
+    ".aif",
+    ".aiff",
+    ".alac",
+    ".flac",
+    ".m4a",
+    ".mp3",
+    ".mp4",
+    ".ogg",
+    ".wav",
+    ".wma",
+}
 
 
 def run_rsgain(directory, gain_profile="track", threads=4):
@@ -129,6 +149,161 @@ def analyze_gain(filepath):
         })
         result["resourcing_recommended"] = result["too_quiet"] or result["potential_clipping"]
     return result
+
+
+def is_lossless_audio(audio_info):
+    return _is_lossless_codec(audio_info) or audio_info.get("ext") in [".alac", ".wav", ".aiff", ".aif"]
+
+
+def analyze_quality(filepath, root_dir=None):
+    try:
+        audio_info = get_audio_info(filepath)
+        read_error = None
+    except Exception as e:
+        audio_info = _empty_audio_info(filepath)
+        read_error = str(e)
+
+    try:
+        gain_info = analyze_gain(filepath)
+    except Exception:
+        gain_info = _empty_gain_info(filepath)
+
+    reasons = []
+    ext = audio_info.get("ext")
+    bitrate = audio_info.get("bitrate")
+    sample_rate = audio_info.get("sample_rate")
+    duration = audio_info.get("duration")
+    parser = audio_info.get("parser")
+    is_lossless = is_lossless_audio(audio_info)
+
+    if parser is None:
+        reasons.append("decode_error")
+    if bitrate is not None and not is_lossless and bitrate < LOW_BITRATE_LOSSY_KBPS:
+        reasons.append("low_bitrate_lossy")
+    if ext == ".flac" and bitrate is not None and bitrate < SUSPICIOUS_FLAC_BITRATE_KBPS:
+        reasons.append("suspicious_lossless_bitrate")
+    if sample_rate is not None and sample_rate < LOW_SAMPLE_RATE_HZ:
+        reasons.append("low_sample_rate")
+    if duration is not None and duration < 30:
+        reasons.append("very_short_track")
+    if gain_info["potential_clipping"]:
+        reasons.append("potential_clipping")
+    if gain_info["track_gain"] is None:
+        reasons.append("missing_replaygain")
+
+    return {
+        "path": filepath,
+        "relative_path": os.path.relpath(filepath, root_dir) if root_dir else filepath,
+        "ext": ext,
+        "codec": audio_info.get("codec"),
+        "codec_description": audio_info.get("codec_description"),
+        "parser": parser,
+        "bitrate": bitrate,
+        "sample_rate": sample_rate,
+        "bits_per_sample": audio_info.get("bits_per_sample"),
+        "duration": duration,
+        "is_lossless": is_lossless,
+        "track_gain": gain_info["track_gain"],
+        "track_peak": gain_info["track_peak"],
+        "album_gain": gain_info["album_gain"],
+        "album_peak": gain_info["album_peak"],
+        "resourcing_recommended": any(
+            reason not in NON_RESOURCING_QUALITY_REASONS
+            for reason in reasons
+        ),
+        "error": read_error,
+        "reasons": reasons,
+    }
+
+
+def _empty_audio_info(filepath):
+    return {
+        "ext": os.path.splitext(filepath)[1].lower(),
+        "sample_rate": None,
+        "bits_per_sample": None,
+        "bitrate": None,
+        "duration": None,
+        "codec": None,
+        "codec_description": None,
+        "parser": None,
+    }
+
+
+def _empty_gain_info(filepath):
+    return {
+        "path": filepath,
+        "track_gain": None,
+        "album_gain": None,
+        "track_peak": None,
+        "album_peak": None,
+        "too_quiet": False,
+        "potential_clipping": False,
+        "resourcing_recommended": False,
+    }
+
+
+def audit_quality(root_dir):
+    tracks = [
+        analyze_quality(path, root_dir=root_dir)
+        for path in iter_quality_audio_files(root_dir)
+    ]
+    flagged = [track for track in tracks if track["resourcing_recommended"]]
+    return {
+        "root_dir": root_dir,
+        "track_count": len(tracks),
+        "flagged_count": len(flagged),
+        "tracks": tracks,
+    }
+
+
+def iter_quality_audio_files(root_dir):
+    for root, _, files in os.walk(root_dir):
+        for filename in sorted(files):
+            ext = os.path.splitext(filename)[1].lower()
+            if ext in QUALITY_AUDIO_EXTENSIONS:
+                yield os.path.join(root, filename)
+
+
+def write_quality_audit_reports(audit, output_dir):
+    os.makedirs(output_dir, exist_ok=True)
+    json_path = os.path.join(output_dir, "quality_audit.json")
+    md_path = os.path.join(output_dir, "quality_audit.md")
+
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(audit, f, indent=2)
+
+    lines = [
+        "# Quality Audit",
+        "",
+        f"- Root: `{audit['root_dir']}`",
+        f"- Tracks scanned: {audit['track_count']}",
+        f"- Resourcing recommended: {audit['flagged_count']}",
+        "",
+        "| Resourcing | Path | Codec | Bitrate | Sample Rate | Reasons |",
+        "|------------|------|-------|---------|-------------|---------|",
+    ]
+
+    for track in audit["tracks"]:
+        lines.append(
+            f"| {track['resourcing_recommended']} | "
+            f"{_markdown_cell(track['relative_path'])} | "
+            f"{_markdown_cell(track.get('codec_description') or track.get('codec') or track.get('parser') or '')} | "
+            f"{_markdown_cell(track.get('bitrate') or '')} | "
+            f"{_markdown_cell(track.get('sample_rate') or '')} | "
+            f"{_markdown_cell(', '.join(track['reasons']))} |"
+        )
+
+    with open(md_path, "w", encoding="utf-8") as f:
+        f.write("\n".join(lines) + "\n")
+
+    return {
+        "json": json_path,
+        "markdown": md_path,
+    }
+
+
+def _markdown_cell(value):
+    return str(value).replace("|", "\\|").replace("\n", " ")
 
 
 def choose_aac_bitrate(audio_info):

@@ -16,10 +16,12 @@ from musiclib.convert import (
 )
 from musiclib.analyze import (
     analyze_gain,
+    audit_quality,
     choose_aac_bitrate,
     decide_encoding_strategy,
     get_audio_info,
-    run_rsgain
+    run_rsgain,
+    write_quality_audit_reports,
 )
 from musiclib.artwork import extract_embedded_artwork
 from musiclib.metadata_audit import (
@@ -280,6 +282,11 @@ def run_metadata_audit_command(args):
     print(f"Metadata audit saved to:\n- {reports['json']}\n- {reports['markdown']}")
 
 
+def run_quality_audit_command(args):
+    reports = write_quality_audit_reports(audit_quality(args.input), args.output)
+    print(f"Quality audit saved to:\n- {reports['json']}\n- {reports['markdown']}")
+
+
 def run_filename_plan_command(args):
     plan = build_filename_normalization_plan(audit_metadata(args.input))
     reports = write_filename_plan_reports(plan, args.output)
@@ -327,6 +334,11 @@ def build_parser():
     metadata_parser.add_argument("input", help="Path to input directory")
     metadata_parser.add_argument("output", help="Path to output directory")
     metadata_parser.set_defaults(handler=run_metadata_audit_command)
+
+    quality_parser = subparsers.add_parser("quality-audit", help="Write read-only source quality audit reports.")
+    quality_parser.add_argument("input", help="Path to input directory")
+    quality_parser.add_argument("output", help="Path to output directory")
+    quality_parser.set_defaults(handler=run_quality_audit_command)
 
     filename_plan_parser = subparsers.add_parser("filename-plan", help="Write a read-only filename normalization plan.")
     filename_plan_parser.add_argument("input", help="Path to input directory")
