@@ -80,6 +80,21 @@ This writes:
 - `metadata_audit.json`
 - `metadata_audit.md`
 
+To run a read-only quality audit for files that may need re-sourcing:
+
+```bash
+python process_music.py quality-audit /path/to/input /path/to/output
+```
+
+This writes:
+
+- `quality_audit.json`
+- `quality_audit.md`
+
+The quality audit flags low-bitrate lossy files, suspicious low-bitrate FLACs,
+low sample rates, very short tracks, potential clipping, decode errors, and
+missing ReplayGain tags.
+
 To write a read-only filename normalization plan:
 
 ```bash
@@ -153,6 +168,7 @@ This writes `filename_normalization_results.json`.
 - `--gain-profile track` is intended for shuffled libraries and similar loudness across songs.
 - `--gain-profile album` preserves album-relative loudness and depends on album-per-folder organization.
 - `metadata-audit` is read-only. It reports metadata problems but does not rename files or modify tags.
+- `quality-audit` is read-only. It reports likely source-quality problems but does not modify files.
 - `filename-plan` is read-only. It proposes filename changes but does not apply them.
 - `apply-filename-plan` only renames files within their current folders. It does not move folders or modify tags.
 - Personal canonical artist spellings can be added to `CANONICAL_ARTIST_OVERRIDES` in `musiclib/metadata_audit.py`, for example `Queens of the Stone Age`.
