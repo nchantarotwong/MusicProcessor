@@ -437,3 +437,149 @@ def write_filename_plan_reports(plan, output_dir):
         "json": json_path,
         "markdown": md_path,
     }
+
+
+def apply_filename_normalization_plan(plan_path, allow_partial=False):
+    """
+    Applies rename actions from a filename normalization plan.
+
+    This only renames files within the plan root. It does not move folders,
+    write metadata, or apply blocked/no-change actions.
+    """
+    with open(plan_path, encoding="utf-8") as f:
+        plan = json.load(f)
+
+    root_dir = plan["root_dir"]
+    actions = plan.get("actions", [])
+    blocked_actions = [action for action in actions if action.get("status") == "blocked"]
+    results = []
+
+    if blocked_actions and not allow_partial:
+        for action in actions:
+            results.append({
+                "status": "skipped",
+                "reason": "plan contains blocked actions",
+                "path": action.get("path"),
+                "proposed_path": action.get("proposed_path"),
+            })
+        return _filename_apply_result(root_dir, results)
+
+    rename_actions = [action for action in actions if action.get("status") == "rename"]
+    target_counts = Counter(action.get("proposed_path") for action in rename_actions)
+
+    for action in actions:
+        if action.get("status") != "rename":
+            results.append({
+                "status": "skipped",
+                "reason": f"action status is {action.get('status')}",
+                "path": action.get("path"),
+                "proposed_path": action.get("proposed_path"),
+            })
+            continue
+
+        path = action.get("path")
+        proposed_path = action.get("proposed_path")
+        if target_counts[proposed_path] > 1:
+            results.append({
+                "status": "blocked",
+                "reason": "target filename collision",
+                "path": path,
+                "proposed_path": proposed_path,
+            })
+            continue
+
+        source = _resolve_plan_path(root_dir, path)
+        target = _resolve_plan_path(root_dir, proposed_path)
+        if os.path.dirname(source) != os.path.dirname(target):
+            results.append({
+                "status": "blocked",
+                "reason": "folder moves are not supported",
+                "path": path,
+                "proposed_path": proposed_path,
+            })
+            continue
+
+        if not os.path.exists(source):
+            results.append({
+                "status": "blocked",
+                "reason": "source file does not exist",
+                "path": path,
+                "proposed_path": proposed_path,
+            })
+            continue
+
+        if os.path.exists(target) and not _is_same_file(source, target):
+            results.append({
+                "status": "blocked",
+                "reason": "target file already exists",
+                "path": path,
+                "proposed_path": proposed_path,
+            })
+            continue
+
+        _rename_file(source, target)
+        results.append({
+            "status": "renamed",
+            "reason": None,
+            "path": path,
+            "proposed_path": proposed_path,
+        })
+
+    return _filename_apply_result(root_dir, results)
+
+
+def write_filename_apply_results(result, output_dir):
+    os.makedirs(output_dir, exist_ok=True)
+    json_path = os.path.join(output_dir, "filename_normalization_results.json")
+    with open(json_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2)
+    return json_path
+
+
+def _filename_apply_result(root_dir, results):
+    return {
+        "root_dir": root_dir,
+        "renamed_count": sum(1 for result in results if result["status"] == "renamed"),
+        "blocked_count": sum(1 for result in results if result["status"] == "blocked"),
+        "skipped_count": sum(1 for result in results if result["status"] == "skipped"),
+        "results": results,
+    }
+
+
+def _resolve_plan_path(root_dir, relative_path):
+    if not relative_path:
+        raise ValueError("Plan path is required")
+
+    root_abs = os.path.abspath(root_dir)
+    resolved = os.path.abspath(os.path.join(root_abs, relative_path))
+    if os.path.commonpath([root_abs, resolved]) != root_abs:
+        raise ValueError(f"Plan path escapes root: {relative_path}")
+    return resolved
+
+
+def _is_same_file(source, target):
+    try:
+        return os.path.samefile(source, target)
+    except FileNotFoundError:
+        return False
+
+
+def _rename_file(source, target):
+    if _is_same_file(source, target) and source != target:
+        temp = _case_rename_temp_path(source)
+        os.replace(source, temp)
+        os.replace(temp, target)
+        return
+
+    os.replace(source, target)
+
+
+def _case_rename_temp_path(source):
+    directory = os.path.dirname(source)
+    basename = os.path.basename(source)
+    candidate = os.path.join(directory, f".{basename}.rename-tmp")
+    counter = 1
+    while os.path.exists(candidate):
+        candidate = os.path.join(directory, f".{basename}.rename-tmp-{counter}")
+        counter += 1
+    return candidate

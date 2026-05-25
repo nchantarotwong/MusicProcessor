@@ -24,7 +24,9 @@ from musiclib.analyze import (
 from musiclib.artwork import extract_embedded_artwork
 from musiclib.metadata_audit import (
     audit_metadata,
+    apply_filename_normalization_plan,
     build_filename_normalization_plan,
+    write_filename_apply_results,
     write_filename_plan_reports,
     write_metadata_audit_reports,
 )
@@ -275,6 +277,15 @@ if __name__ == "__main__":
         action="store_true",
         help="Only write a dry-run filename normalization plan; do not rename or process audio.",
     )
+    parser.add_argument(
+        "--apply-filename-plan",
+        help="Apply rename actions from a filename_normalization_plan.json file.",
+    )
+    parser.add_argument(
+        "--allow-partial-renames",
+        action="store_true",
+        help="Apply valid filename-plan renames even if the plan contains blocked actions.",
+    )
     parser.add_argument("--overwrite", action="store_true", help="Overwrite existing output files")
     parser.add_argument("--workers", type=int, default=None, help="Number of parallel workers to use")
     parser.add_argument(
@@ -301,6 +312,20 @@ if __name__ == "__main__":
         plan = build_filename_normalization_plan(audit_metadata(args.input))
         reports = write_filename_plan_reports(plan, args.output)
         print(f"Filename normalization plan saved to:\n- {reports['json']}\n- {reports['markdown']}")
+        raise SystemExit(0)
+
+    if args.apply_filename_plan:
+        result = apply_filename_normalization_plan(
+            args.apply_filename_plan,
+            allow_partial=args.allow_partial_renames,
+        )
+        result_path = write_filename_apply_results(result, args.output)
+        print(f"Filename normalization results saved to:\n- {result_path}")
+        print(
+            f"Renamed: {result['renamed_count']}; "
+            f"Blocked: {result['blocked_count']}; "
+            f"Skipped: {result['skipped_count']}"
+        )
         raise SystemExit(0)
 
     with prevent_system_sleep():
